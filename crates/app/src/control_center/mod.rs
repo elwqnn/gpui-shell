@@ -131,6 +131,12 @@ impl Focusable for ControlCenter {
 
 impl Render for ControlCenter {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Hold focus: without it the panel's key context never matches, so
+        // neither Escape nor the password prompt sees a key.
+        if !self.focus_handle.is_focused(window) {
+            self.focus_handle.focus(window, cx);
+        }
+
         let network_service = AppState::network(cx).clone();
 
         // Create entity-based callbacks for section toggling
@@ -455,15 +461,22 @@ impl Render for ControlCenter {
                         });
                     }
                 })
+                // Escape backs out of the password prompt first, and closes
+                // the panel once there is nothing left to back out of.
                 .on_action({
                     let entity = entity.clone();
-                    move |_: &Cancel, _window, cx| {
-                        entity.update(cx, |this, cx| {
-                            if this.wifi_password.ssid.is_some() {
+                    move |_: &Cancel, window, cx| {
+                        let prompting = entity.update(cx, |this, cx| {
+                            let prompting = this.wifi_password.ssid.is_some();
+                            if prompting {
                                 this.wifi_password.clear();
                                 cx.notify();
                             }
+                            prompting
                         });
+                        if !prompting {
+                            crate::panel::dismiss(window);
+                        }
                     }
                 })
                 .on_action({

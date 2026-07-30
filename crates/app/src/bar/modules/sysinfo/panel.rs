@@ -2,6 +2,8 @@
 //!
 //! This panel displays CPU, memory, swap, temperature, network, and disk information.
 
+use crate::keybinds::Cancel;
+use crate::panel::PanelFocus;
 use crate::state::watch;
 use gpui::{App, Context, FontWeight, Hsla, ScrollHandle, Window, div, prelude::*, px};
 use services::{SysInfoData, SysInfoSubscriber};
@@ -15,6 +17,7 @@ use ui::{
 pub struct SysInfoPanel {
     data: SysInfoData,
     scroll_handle: ScrollHandle,
+    focus: PanelFocus,
 }
 
 /// Width of the icon gutter every info row aligns to.
@@ -34,6 +37,7 @@ impl SysInfoPanel {
         SysInfoPanel {
             data: initial_data,
             scroll_handle: ScrollHandle::new(),
+            focus: PanelFocus::new(cx),
         }
     }
 
@@ -109,7 +113,8 @@ impl SysInfoPanel {
 }
 
 impl Render for SysInfoPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let focus = self.focus.arm(window, cx).clone();
         let theme = cx.theme();
 
         let cpu_usage = self.data.cpu_usage;
@@ -162,6 +167,9 @@ impl Render for SysInfoPanel {
 
         v_flex()
             .id("sysinfo-panel")
+            .track_focus(&focus)
+            .key_context("Panel")
+            .on_action(|_: &Cancel, window, _| crate::panel::dismiss(window))
             .w_full()
             .h_full()
             .p(Spacing::XLarge.pixels())

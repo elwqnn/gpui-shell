@@ -3,7 +3,8 @@
 mod config;
 pub use config::TrayConfig;
 
-use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
+use crate::keybinds::Cancel;
+use crate::panel::{PanelConfig, PanelFocus, panel_placement_from_event, toggle_panel};
 use gpui::{
     AnyElement, App, ClickEvent, Context, ElementId, Pixels, Point, Render, RenderImage,
     SharedString, Size, Window, div, img, prelude::*, px,
@@ -210,6 +211,7 @@ struct TrayMenuPanel {
     subscriber: services::TraySubscriber,
     /// Track which submenus are expanded (by menu ID)
     expanded_submenus: Vec<i32>,
+    focus: PanelFocus,
 }
 
 impl TrayMenuPanel {
@@ -236,6 +238,7 @@ impl TrayMenuPanel {
             item_name,
             subscriber,
             expanded_submenus: Vec::new(),
+            focus: PanelFocus::new(cx),
         }
     }
 
@@ -251,7 +254,7 @@ impl TrayMenuPanel {
         .detach();
 
         // Close the menu panel
-        window.remove_window();
+        crate::panel::dismiss(window);
     }
 
     /// Toggle submenu expansion state.
@@ -420,12 +423,16 @@ fn render_menu_item(
 }
 
 impl Render for TrayMenuPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let focus = self.focus.arm(window, cx).clone();
         let menu_items = self.render_menu_items(&self.menu.2, 0, cx);
         let theme = cx.theme();
 
         div()
             .id("systray-menu-panel")
+            .track_focus(&focus)
+            .key_context("Panel")
+            .on_action(|_: &Cancel, window, _| crate::panel::dismiss(window))
             .size_full()
             .panel_surface(cx)
             .text_color(theme.colors.text)
