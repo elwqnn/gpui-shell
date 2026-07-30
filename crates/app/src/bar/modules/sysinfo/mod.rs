@@ -5,12 +5,12 @@
 use crate::panel::{PanelConfig, toggle_panel};
 use gpui::{AnyElement, App, ClickEvent, Context, Pixels, Point, Size, Window, prelude::*, px};
 use services::SysInfoData;
-use ui::{ActiveTheme, ButtonCommon, ButtonLike, ButtonStyle, Clickable, IconName};
+use ui::{ActiveTheme, IconName};
 
 mod config;
 pub use config::SysInfoConfig;
 
-use super::{BarWidget, style};
+use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
 use crate::panel::panel_placement_from_event;
 use crate::state::AppState;
@@ -135,44 +135,38 @@ impl SysInfo {
         stats
     }
 
-    fn render_stats(
-        &mut self,
-        cx: &mut Context<Self>,
-        stats: Vec<SysInfoStat>,
-        is_vertical: bool,
-    ) -> AnyElement {
-        ButtonLike::new("sysinfo-widget")
-            .style(ButtonStyle::Transparent)
-            .on_click(cx.listener(|this, event: &ClickEvent, window, cx| {
-                this.toggle_panel(event.position(), window, cx);
-            }))
-            .child(
-                style::stack(is_vertical)
-                    .justify_center()
-                    .gap(px(style::CHIP_GAP))
-                    .children(stats.into_iter().map(|stat| {
-                        style::bar_stat(is_vertical, stat.icon, stat.text, stat.color)
-                    })),
+    fn render_stats(stats: Vec<SysInfoStat>, is_vertical: bool) -> AnyElement {
+        style::stack(is_vertical)
+            .justify_center()
+            .gap(px(style::CHIP_GAP))
+            .children(
+                stats
+                    .into_iter()
+                    .map(|stat| style::bar_stat(is_vertical, stat.icon, stat.text, stat.color)),
             )
             .into_any_element()
     }
 }
 
 impl BarWidget for SysInfo {
-    fn is_interactive(&self) -> bool {
-        true
+    fn on_click(&self, cx: &mut Context<Self>) -> Option<BarClick> {
+        Some(Box::new(cx.listener(
+            |this, event: &ClickEvent, window, cx| {
+                this.toggle_panel(event.position(), window, cx);
+            },
+        )))
     }
 
     fn render_vertical(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let config = &cx.config().bar.modules.sysinfo;
         let stats = self.stats(cx.theme(), config, true);
-        self.render_stats(cx, stats, true)
+        Self::render_stats(stats, true)
     }
 
     fn render_horizontal(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let config = &cx.config().bar.modules.sysinfo;
         let stats = self.stats(cx.theme(), config, false);
-        self.render_stats(cx, stats, false)
+        Self::render_stats(stats, false)
     }
 }
 

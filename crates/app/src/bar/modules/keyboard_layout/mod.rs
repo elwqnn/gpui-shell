@@ -5,11 +5,9 @@ pub use config::KeyboardLayoutConfig;
 
 use gpui::{AnyElement, Context, Window, prelude::*, px};
 use services::{CompositorCommand, CompositorState};
-use ui::{
-    ActiveTheme, ButtonCommon, ButtonLike, ButtonStyle, Clickable, Color, Icon, IconName, LabelLike,
-};
+use ui::{ActiveTheme, Color, Icon, IconName, LabelLike};
 
-use super::{BarWidget, style};
+use super::{BarClick, BarWidget, style};
 use crate::config::ActiveConfig;
 use crate::state::AppState;
 use crate::state::watch;
@@ -143,51 +141,44 @@ impl KeyboardLayout {
     /// `flag` is a country emoji when the user asked for one and we know it;
     /// otherwise the widget falls back to the keyboard icon.
     fn render_layout_content(
-        &self,
         theme: &ui::Theme,
         flag: Option<&'static str>,
         short_name: String,
         is_vertical: bool,
-        cx: &mut Context<Self>,
     ) -> AnyElement {
         let name_label = style::bar_label(short_name, is_vertical, theme.colors.text);
 
-        ButtonLike::new("keyboard-layout")
-            .style(ButtonStyle::Transparent)
-            .on_click(cx.listener(|this, _, _, _| {
-                this.next_layout();
-            }))
-            .child(
-                style::stack(is_vertical)
-                    .justify_center()
-                    .gap(px(style::CHIP_GAP))
-                    .map(|el| match flag {
-                        // A country emoji is a glyph, not an icon asset, so it
-                        // is sized as text - at the icon's rem size.
-                        Some(flag) => el.child(
-                            LabelLike::new()
-                                .size_rems(style::icon(is_vertical).rems())
-                                .child(flag),
-                        ),
-                        None => el.child(
-                            Icon::new(KEYBOARD_ICON)
-                                .size(style::icon(is_vertical))
-                                .color(Color::Default),
-                        ),
-                    })
-                    .child(if is_vertical {
-                        style::vertical_text_line(name_label)
-                    } else {
-                        name_label.into_any_element()
-                    }),
-            )
+        style::stack(is_vertical)
+            .justify_center()
+            .gap(px(style::CHIP_GAP))
+            .map(|el| match flag {
+                // A country emoji is a glyph, not an icon asset, so it
+                // is sized as text - at the icon's rem size.
+                Some(flag) => el.child(
+                    LabelLike::new()
+                        .size_rems(style::icon(is_vertical).rems())
+                        .child(flag),
+                ),
+                None => el.child(
+                    Icon::new(KEYBOARD_ICON)
+                        .size(style::icon(is_vertical))
+                        .color(Color::Default),
+                ),
+            })
+            .child(if is_vertical {
+                style::vertical_text_line(name_label)
+            } else {
+                name_label.into_any_element()
+            })
             .into_any_element()
     }
 }
 
 impl BarWidget for KeyboardLayout {
-    fn is_interactive(&self) -> bool {
-        true
+    fn on_click(&self, cx: &mut Context<Self>) -> Option<BarClick> {
+        Some(Box::new(cx.listener(|this, _, _, _| {
+            this.next_layout();
+        })))
     }
 
     fn render_vertical(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -195,7 +186,7 @@ impl BarWidget for KeyboardLayout {
         let config = &cx.config().bar.modules.keyboard_layout;
         let short_name = self.short_layout_name();
         let flag = config.show_flag.then(|| self.flag_for_layout()).flatten();
-        self.render_layout_content(&theme, flag, short_name, true, cx)
+        Self::render_layout_content(&theme, flag, short_name, true)
     }
 
     fn render_horizontal(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -203,7 +194,7 @@ impl BarWidget for KeyboardLayout {
         let config = &cx.config().bar.modules.keyboard_layout;
         let short_name = self.short_layout_name();
         let flag = config.show_flag.then(|| self.flag_for_layout()).flatten();
-        self.render_layout_content(&theme, flag, short_name, false, cx)
+        Self::render_layout_content(&theme, flag, short_name, false)
     }
 }
 

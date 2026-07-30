@@ -27,7 +27,7 @@ fn chip(icon: IconName, label: &'static str, vertical: bool, cx: &App) -> AnyEle
             .child(Label::new(label).size(TextSize::Small))
     };
 
-    BarChip::new(content)
+    BarChip::new(format!("chip-{label}-{vertical}"), content)
         .vertical(vertical)
         .background(colors.surface_background)
         .border(Some(colors.border))
@@ -42,6 +42,7 @@ fn group(icons: &[IconName], vertical: bool, cx: &App) -> AnyElement {
         .map(|icon| Icon::new(*icon).size(IconSize::Small).into_any_element());
 
     BarChip::new(
+        format!("group-{vertical}"),
         div()
             .flex()
             .when(vertical, |el| el.flex_col())
@@ -106,6 +107,7 @@ fn bare_chips(cx: &App) -> AnyElement {
         .items_center()
         .child(
             BarChip::new(
+                "bare-wifi",
                 h_flex()
                     .items_center()
                     .gap(px(4.))
@@ -115,7 +117,7 @@ fn bare_chips(cx: &App) -> AnyElement {
             .border(transparent),
         )
         .child(
-            BarChip::new(Label::new("09:41").size(TextSize::Small))
+            BarChip::new("bare-clock", Label::new("09:41").size(TextSize::Small))
                 .hover(Some(cx.theme().colors().element_hover)),
         )
         .into_any_element()

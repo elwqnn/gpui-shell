@@ -1,9 +1,10 @@
-use gpui::{AnyElement, Context, IntoElement, Window};
+use gpui::{AnyElement, Context, IntoElement, Window, prelude::FluentBuilder};
 
 use super::style;
 use crate::config::ActiveConfig;
 use ui::ActiveTheme;
 use ui::patterns::BarChip;
+pub(crate) use ui::patterns::BarClick;
 
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -22,8 +23,11 @@ pub(crate) trait BarWidget: Sized {
 
     fn render_horizontal(&mut self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement;
 
-    fn is_interactive(&self) -> bool {
-        false
+    /// The chip is the hit target: a widget that answers clicks hands its
+    /// handler up rather than wrapping its content in a button, so the chip's
+    /// padding is not a dead zone around it.
+    fn on_click(&self, _cx: &mut Context<Self>) -> Option<BarClick> {
+        None
     }
 
     fn shell(&self) -> BarWidgetShell {
@@ -44,11 +48,14 @@ pub(crate) trait BarWidget: Sized {
             return content;
         }
 
+        let on_click = self.on_click(cx);
         let theme = cx.theme();
         let bar = &cx.config().bar;
         let is_vertical = bar.is_vertical();
 
-        BarChip::new(content)
+        // One chip per widget, and every widget is its own view, so a fixed id
+        // is unique where it has to be.
+        BarChip::new("bar-chip", content)
             .vertical(is_vertical)
             .grouped(shell == BarWidgetShell::Group)
             .background(style::widget_background(theme, bar))
@@ -57,9 +64,11 @@ pub(crate) trait BarWidget: Sized {
                     .then(|| style::widget_border(theme, bar, is_vertical)),
             )
             .hover(
-                self.is_interactive()
+                on_click
+                    .is_some()
                     .then(|| style::widget_hover_background(theme, bar)),
             )
+            .when_some(on_click, |chip, handler| chip.on_click(handler))
             .into_any_element()
     }
 

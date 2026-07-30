@@ -5,11 +5,9 @@
 
 use gpui::{AnyElement, Context, Entity, prelude::*};
 
-use crate::notification::NotificationWidget;
-
 use super::{
-    ActiveWindow, Battery, Clock, KeyboardLayout, LauncherBtn, Mpris, Settings, SysInfo, Tray,
-    Workspaces,
+    ActiveWindow, Battery, Clock, KeyboardLayout, LauncherBtn, Mpris, NotificationWidget, Settings,
+    SysInfo, Tray, Workspaces,
 };
 
 /// Wrapper enum for all possible widget types.

@@ -1,7 +1,8 @@
 //! Status bar chrome: the edge-anchored surface and the chip each widget sits in.
 
 use gpui::{
-    AnyElement, App, FontWeight, Hsla, IntoElement, Pixels, RenderOnce, Window, div, prelude::*, px,
+    AnyElement, App, ClickEvent, ElementId, FontWeight, Hsla, IntoElement, Pixels, RenderOnce,
+    Window, div, prelude::*, px,
 };
 
 use crate::{ActiveTheme, Radius, Spacing, TextSize};
@@ -148,28 +149,47 @@ fn section(vertical: bool, align: Align, widgets: Vec<AnyElement>) -> impl IntoE
     }
 }
 
+/// What a click anywhere on a [`BarChip`] does.
+pub type BarClick = Box<dyn Fn(&ClickEvent, &mut Window, &mut App) + 'static>;
+
 /// The pill a bar widget lives in, plus the breathing room around it.
 #[derive(IntoElement)]
 #[must_use = "BarChip does nothing unless rendered"]
 pub struct BarChip {
+    id: ElementId,
     content: AnyElement,
     vertical: bool,
     grouped: bool,
     background: Hsla,
     border: Option<Hsla>,
     hover: Option<Hsla>,
+    on_click: Option<BarClick>,
 }
 
 impl BarChip {
-    pub fn new(content: impl IntoElement) -> Self {
+    /// `id` has to be unique within the view that renders the chip: it is what
+    /// gpui keys hover state on, and what makes a hover change repaint.
+    pub fn new(id: impl Into<ElementId>, content: impl IntoElement) -> Self {
         Self {
+            id: id.into(),
             content: content.into_any_element(),
             vertical: false,
             grouped: false,
             background: gpui::transparent_black(),
             border: None,
             hover: None,
+            on_click: None,
         }
+    }
+
+    /// Make the whole chip - padding included - the click target, so what
+    /// lights up on hover is exactly what answers a click.
+    pub fn on_click(
+        mut self,
+        handler: impl Fn(&ClickEvent, &mut Window, &mut App) + 'static,
+    ) -> Self {
+        self.on_click = Some(Box::new(handler));
+        self
     }
 
     pub fn vertical(mut self, vertical: bool) -> Self {
@@ -229,7 +249,10 @@ impl RenderOnce for BarChip {
             chip_padding_x(vertical)
         };
 
+        // Always identified: gpui needs element state to repaint on a hover
+        // change, and the chip is the hit target for the whole widget.
         let chip = div()
+            .id(self.id)
             .map(|el| {
                 if vertical {
                     el.w_full().flex().flex_col().items_center()
@@ -255,6 +278,9 @@ impl RenderOnce for BarChip {
             .when_some(self.border, |el, color| el.border_1().border_color(color))
             .when_some(hover, |el, color| {
                 el.cursor_pointer().hover(move |style| style.bg(color))
+            })
+            .when_some(self.on_click, |el, handler| {
+                el.on_click(move |event, window, cx| handler(event, window, cx))
             })
             .child(self.content);
 

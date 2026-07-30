@@ -5,12 +5,9 @@ pub use config::MprisConfig;
 
 use gpui::{AnyElement, App, ClickEvent, Context, Pixels, Point, Size, Window, prelude::*, px};
 use services::{MprisData, PlaybackStatus};
-use ui::{
-    ActiveTheme, ButtonCommon, ButtonLike, ButtonStyle, Clickable, Color, Icon, IconName,
-    LabelCommon,
-};
+use ui::{ActiveTheme, Color, Icon, IconName, LabelCommon};
 
-use super::{BarWidget, style};
+use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
 use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
 use crate::state::AppState;
@@ -104,33 +101,30 @@ impl Mpris {
     ) -> AnyElement {
         let max_width = cx.config().bar.modules.mpris.max_width;
 
-        ButtonLike::new("mpris-widget")
-            .style(ButtonStyle::Transparent)
-            .on_click(cx.listener(|this, event: &ClickEvent, window, cx| {
-                this.toggle_panel(event.position(), window, cx);
-            }))
+        style::stack(is_vertical)
+            .justify_center()
+            .gap(px(style::CHIP_GAP))
+            .max_w(px(max_width))
+            .overflow_hidden()
             .child(
-                style::stack(is_vertical)
-                    .justify_center()
-                    .gap(px(style::CHIP_GAP))
-                    .max_w(px(max_width))
-                    .overflow_hidden()
-                    .child(
-                        Icon::new(icon)
-                            .size(style::icon(is_vertical))
-                            .color(Color::Default),
-                    )
-                    .when_some(label, |el, label| {
-                        el.child(style::bar_label(label, is_vertical, theme.colors.text).truncate())
-                    }),
+                Icon::new(icon)
+                    .size(style::icon(is_vertical))
+                    .color(Color::Default),
             )
+            .when_some(label, |el, label| {
+                el.child(style::bar_label(label, is_vertical, theme.colors.text).truncate())
+            })
             .into_any_element()
     }
 }
 
 impl BarWidget for Mpris {
-    fn is_interactive(&self) -> bool {
-        true
+    fn on_click(&self, cx: &mut Context<Self>) -> Option<BarClick> {
+        Some(Box::new(cx.listener(
+            |this, event: &ClickEvent, window, cx| {
+                this.toggle_panel(event.position(), window, cx);
+            },
+        )))
     }
 
     fn render_vertical(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {

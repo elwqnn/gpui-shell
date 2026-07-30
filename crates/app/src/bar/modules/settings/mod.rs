@@ -15,14 +15,12 @@ use services::{
     ActiveConnectionInfo, AudioData, BluetoothData, BluetoothState, NetworkData, PrivacyData,
     UPowerData,
 };
-use ui::{
-    ActiveTheme, ButtonCommon, ButtonLike, ButtonStyle, Clickable, Color, Icon, IconName, IconSize,
-};
+use ui::{ActiveTheme, Color, Icon, IconName, IconSize};
 
 mod config;
 pub use config::SettingsConfig;
 
-use super::{BarWidget, style};
+use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
 use crate::control_center::{
     CONTROL_CENTER_PANEL_HEIGHT_COLLAPSED, CONTROL_CENTER_PANEL_WIDTH, ControlCenter,
@@ -287,8 +285,12 @@ impl Settings {
 }
 
 impl BarWidget for Settings {
-    fn is_interactive(&self) -> bool {
-        true
+    fn on_click(&self, cx: &mut Context<Self>) -> Option<BarClick> {
+        Some(Box::new(cx.listener(
+            |this, event: &gpui::ClickEvent, window, cx| {
+                this.toggle_panel(event.position(), window, cx);
+            },
+        )))
     }
 
     fn render_vertical(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -296,44 +298,37 @@ impl BarWidget for Settings {
         let view = self.view(theme, true);
         let icon_size = style::icon(true);
 
-        ButtonLike::new("settings-widget")
-            .style(ButtonStyle::Transparent)
-            .on_click(cx.listener(|this, event: &gpui::ClickEvent, window, cx| {
-                this.toggle_panel(event.position(), window, cx);
+        style::stack(true)
+            .justify_center()
+            .gap(px(style::CHIP_GAP))
+            // Privacy icons (red, only shown when active)
+            .children(view.privacy_icons.iter().copied().map(move |icon| {
+                Self::render_status_icon(icon, icon_size, theme.colors.status.error)
             }))
-            .child(
-                style::stack(true)
-                    .justify_center()
-                    .gap(px(style::CHIP_GAP))
-                    // Privacy icons (red, only shown when active)
-                    .children(view.privacy_icons.iter().copied().map(move |icon| {
-                        Self::render_status_icon(icon, icon_size, theme.colors.status.error)
-                    }))
-                    // Volume icon
-                    .child(Self::render_status_icon(
-                        view.volume_icon,
-                        icon_size,
-                        theme.colors.text,
-                    ))
-                    // Network icon
-                    .child(Self::render_status_icon(
-                        view.network_icon,
-                        icon_size,
-                        theme.colors.text,
-                    ))
-                    // Bluetooth icon (only when connected)
-                    .when_some(view.bluetooth_icon, |el, icon| {
-                        el.child(Self::render_status_icon(icon, icon_size, theme.colors.text))
-                    })
-                    // Power profile icon
-                    .child(Self::render_status_icon(
-                        view.power_profile_icon,
-                        icon_size,
-                        theme.colors.text,
-                    ))
-                    // Battery icon and percentage
-                    .child(self.render_battery_block(theme, &view, true)),
-            )
+            // Volume icon
+            .child(Self::render_status_icon(
+                view.volume_icon,
+                icon_size,
+                theme.colors.text,
+            ))
+            // Network icon
+            .child(Self::render_status_icon(
+                view.network_icon,
+                icon_size,
+                theme.colors.text,
+            ))
+            // Bluetooth icon (only when connected)
+            .when_some(view.bluetooth_icon, |el, icon| {
+                el.child(Self::render_status_icon(icon, icon_size, theme.colors.text))
+            })
+            // Power profile icon
+            .child(Self::render_status_icon(
+                view.power_profile_icon,
+                icon_size,
+                theme.colors.text,
+            ))
+            // Battery icon and percentage
+            .child(self.render_battery_block(theme, &view, true))
             .into_any_element()
     }
 
@@ -344,37 +339,30 @@ impl BarWidget for Settings {
         let icon_size = style::icon(false);
         let divider_color = style::widget_border(theme, bar, false);
 
-        ButtonLike::new("settings-widget")
-            .style(ButtonStyle::Transparent)
-            .on_click(cx.listener(|this, event: &gpui::ClickEvent, window, cx| {
-                this.toggle_panel(event.position(), window, cx);
+        style::stack(false)
+            .justify_center()
+            .gap(px(3.0))
+            .children(view.privacy_icons.iter().copied().map(move |icon| {
+                Self::render_status_icon(icon, icon_size, theme.colors.status.error)
             }))
-            .child(
-                style::stack(false)
-                    .justify_center()
-                    .gap(px(3.0))
-                    .children(view.privacy_icons.iter().copied().map(move |icon| {
-                        Self::render_status_icon(icon, icon_size, theme.colors.status.error)
-                    }))
-                    .when(!view.privacy_icons.is_empty(), |el| {
-                        el.child(style::section_divider(divider_color))
-                    })
-                    .child(Self::render_status_icon(
-                        view.volume_icon,
-                        icon_size,
-                        theme.colors.text,
-                    ))
-                    .child(Self::render_status_icon(
-                        view.network_icon,
-                        icon_size,
-                        theme.colors.text,
-                    ))
-                    .when_some(view.bluetooth_icon, |el, icon| {
-                        el.child(Self::render_status_icon(icon, icon_size, theme.colors.text))
-                    })
-                    .child(style::section_divider(divider_color))
-                    .child(self.render_battery_block(theme, &view, false)),
-            )
+            .when(!view.privacy_icons.is_empty(), |el| {
+                el.child(style::section_divider(divider_color))
+            })
+            .child(Self::render_status_icon(
+                view.volume_icon,
+                icon_size,
+                theme.colors.text,
+            ))
+            .child(Self::render_status_icon(
+                view.network_icon,
+                icon_size,
+                theme.colors.text,
+            ))
+            .when_some(view.bluetooth_icon, |el, icon| {
+                el.child(Self::render_status_icon(icon, icon_size, theme.colors.text))
+            })
+            .child(style::section_divider(divider_color))
+            .child(self.render_battery_block(theme, &view, false))
             .into_any_element()
     }
 }
