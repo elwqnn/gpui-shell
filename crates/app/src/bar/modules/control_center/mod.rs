@@ -1,6 +1,7 @@
-//! Settings widget showing status icons that opens the control center panel.
+//! Control center widget: system status icons in the bar, and the panel they
+//! open.
 //!
-//! This widget displays:
+//! The widget displays:
 //! - Privacy indicators (mic, webcam, screenshare) when active
 //! - Volume icon
 //! - WiFi/Network icon
@@ -8,7 +9,8 @@
 //! - Power profile icon
 //! - Battery icon + percentage
 //!
-//! Clicking opens the Control Center panel.
+//! The bar config still spells this widget `Settings`, which is why the name
+//! survives as an alias in the widget registry.
 
 use gpui::{AnyElement, Context, Pixels, Point, Size, Window, prelude::*, px};
 use services::{
@@ -17,21 +19,29 @@ use services::{
 };
 use ui::{ActiveTheme, Color, Icon, IconName, IconSize};
 
+mod bluetooth;
 mod config;
-pub use config::SettingsConfig;
+mod panel;
+mod power;
+mod quick_toggles;
+mod sliders;
+mod tooltip;
+mod wifi;
+
+pub use config::ControlCenterConfig;
+pub use panel::{
+    CONTROL_CENTER_PANEL_HEIGHT_COLLAPSED, CONTROL_CENTER_PANEL_WIDTH, ControlCenterPanel,
+};
 
 use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
-use crate::control_center::{
-    CONTROL_CENTER_PANEL_HEIGHT_COLLAPSED, CONTROL_CENTER_PANEL_WIDTH, ControlCenter,
-};
 use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
 use crate::state::{AppState, watch};
 
 use crate::icons;
 
-/// Settings widget for the bar that shows system status icons.
-pub struct Settings {
+/// Control center widget for the bar that shows system status icons.
+pub struct ControlCenter {
     audio: AudioData,
     bluetooth: BluetoothData,
     network: NetworkData,
@@ -39,7 +49,7 @@ pub struct Settings {
     upower: UPowerData,
 }
 
-struct SettingsView {
+struct ControlCenterView {
     privacy_icons: Vec<IconName>,
     volume_icon: IconName,
     network_icon: IconName,
@@ -50,8 +60,8 @@ struct SettingsView {
     battery_color: gpui::Hsla,
 }
 
-impl Settings {
-    /// Create a new settings widget.
+impl ControlCenter {
+    /// Create a new control center widget.
     pub fn new(cx: &mut Context<Self>) -> Self {
         let audio = AppState::audio(cx).get();
         let bluetooth = AppState::bluetooth(cx).get();
@@ -89,7 +99,7 @@ impl Settings {
             cx.notify();
         });
 
-        Settings {
+        ControlCenter {
             audio,
             bluetooth,
             network,
@@ -116,7 +126,7 @@ impl Settings {
         };
 
         toggle_panel("control-center", config, cx, move |cx| {
-            ControlCenter::new(cx)
+            ControlCenterPanel::new(cx)
         });
     }
 
@@ -237,8 +247,8 @@ impl Settings {
         }
     }
 
-    fn view(&self, theme: &ui::Theme, is_vertical: bool) -> SettingsView {
-        SettingsView {
+    fn view(&self, theme: &ui::Theme, is_vertical: bool) -> ControlCenterView {
+        ControlCenterView {
             privacy_icons: self.privacy_icons(is_vertical),
             volume_icon: self.volume_icon(),
             network_icon: self.network_icon(),
@@ -260,7 +270,7 @@ impl Settings {
     fn render_battery_block(
         &self,
         _theme: &ui::Theme,
-        view: &SettingsView,
+        view: &ControlCenterView,
         is_vertical: bool,
     ) -> AnyElement {
         style::stack(is_vertical)
@@ -284,7 +294,7 @@ impl Settings {
     }
 }
 
-impl BarWidget for Settings {
+impl BarWidget for ControlCenter {
     fn on_click(&self, cx: &mut Context<Self>) -> Option<BarClick> {
         Some(Box::new(cx.listener(
             |this, event: &gpui::ClickEvent, window, cx| {
@@ -367,7 +377,7 @@ impl BarWidget for Settings {
     }
 }
 
-impl Render for Settings {
+impl Render for ControlCenter {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.render_bar_widget(window, cx)
     }

@@ -17,7 +17,7 @@ pub use state::State;
 use crate::state::AppState;
 
 pub use crate::bar::config::{BarConfig, BarPosition, ModulesConfig};
-pub use crate::control_center::ControlCenterConfig;
+pub use crate::bar::modules::ControlCenterConfig;
 pub use crate::dock::DockConfig;
 pub use crate::launcher::config::LauncherConfig;
 pub use crate::notification::{NotificationConfig, NotificationPopupPosition};

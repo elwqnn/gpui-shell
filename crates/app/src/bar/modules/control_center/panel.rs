@@ -13,16 +13,6 @@
 //! - `bluetooth` - Bluetooth device list and connections
 //! - `power` - Battery status and power profiles
 
-mod bluetooth;
-pub mod config;
-mod power;
-mod quick_toggles;
-mod sliders;
-mod tooltip;
-mod wifi;
-
-pub use config::{ControlCenterConfig, PowerActionsConfig};
-
 use crate::icons;
 use gpui::{
     App, AvailableSpace, Context, FocusHandle, Focusable, MouseButton, Size, Window, div,
@@ -39,8 +29,9 @@ use crate::keybinds::{
 };
 use crate::state::{AppState, watch};
 
-pub use quick_toggles::ExpandedSection;
-pub use wifi::WifiPasswordState;
+use super::quick_toggles::{self, ExpandedSection};
+use super::wifi::{self, WifiPasswordState};
+use super::{bluetooth, power, sliders};
 
 pub const CONTROL_CENTER_PANEL_WIDTH: f32 = 340.0;
 pub const CONTROL_CENTER_PANEL_HEIGHT_COLLAPSED: f32 = 288.0;
@@ -52,7 +43,7 @@ type WifiDisconnectCallback = Rc<dyn Fn(String, &mut App)>;
 /// Control Center panel component.
 ///
 /// Provides a unified interface for system settings and quick actions.
-pub struct ControlCenter {
+pub struct ControlCenterPanel {
     /// Currently expanded section (WiFi or Bluetooth)
     expanded: ExpandedSection,
     /// Focus handle for keyboard navigation
@@ -63,7 +54,7 @@ pub struct ControlCenter {
     wifi_password: WifiPasswordState,
 }
 
-impl ControlCenter {
+impl ControlCenterPanel {
     /// Create a new control center panel.
     pub fn new(cx: &mut Context<Self>) -> Self {
         let focus_handle = cx.focus_handle();
@@ -71,7 +62,7 @@ impl ControlCenter {
         // Subscribe to service updates
         Self::subscribe_to_services(cx);
 
-        ControlCenter {
+        ControlCenterPanel {
             expanded: ExpandedSection::None,
             focus_handle,
             wifi_password: WifiPasswordState::default(),
@@ -123,13 +114,13 @@ impl ControlCenter {
     }
 }
 
-impl Focusable for ControlCenter {
+impl Focusable for ControlCenterPanel {
     fn focus_handle(&self, _cx: &App) -> FocusHandle {
         self.focus_handle.clone()
     }
 }
 
-impl Render for ControlCenter {
+impl Render for ControlCenterPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         // Hold focus: without it the panel's key context never matches, so
         // neither Escape nor the password prompt sees a key.

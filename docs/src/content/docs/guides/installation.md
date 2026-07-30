@@ -87,5 +87,5 @@ For example, to change bar widget positions:
 position = "top"
 start = ["LauncherBtn", "Workspaces"]
 center = ["Clock"]
-end = ["Systray", "Battery", "Settings"]
+end = ["Systray", "Battery", "ControlCenter"]
 ```
