@@ -208,7 +208,11 @@ fn render_expandable_module(
         .bg(bg_secondary)
         .overflow_hidden()
         .child(
+            // Both halves need an id: gpui only repaints on hover changes for
+            // elements it can keep state for, so an id-less hover style lands
+            // whenever the next frame happens to come.
             div()
+                .id("toggle")
                 .flex_1()
                 .flex()
                 .items_center()
@@ -246,6 +250,7 @@ fn render_expandable_module(
         )
         .child(
             div()
+                .id("expand")
                 .w(px(26.))
                 .h(px(32.))
                 .flex()
