@@ -1,19 +1,19 @@
+//! Notification widget: unread count in the bar, notification center on click.
+//!
+//! The center, popups and cards it opens live in [`crate::notification`] -
+//! they are windows of their own, not bar chrome.
+
 use gpui::{
     AnyElement, App, ClickEvent, Context, Pixels, Point, Render, Size, Window, prelude::*, px,
 };
 use services::{NotificationCommand, NotificationData, NotificationSubscriber};
-use ui::{
-    ActiveTheme, ButtonCommon, ButtonLike, ButtonStyle, Clickable, Color, Icon, IconSource, Label,
-    LabelCommon, TextSize,
-};
+use ui::{ActiveTheme, Color, Icon, IconSource, Label, LabelCommon, TextSize};
 
-use crate::bar::modules::{BarWidget, style};
+use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
+use crate::notification::{NotificationCenter, dispatch_notification_command};
 use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
 use crate::state::{AppState, watch};
-
-use super::dispatch_notification_command;
-use super::panel::NotificationCenter;
 
 /// Notification widget for the bar.
 pub struct NotificationWidget {
@@ -64,66 +64,59 @@ impl NotificationWidget {
         theme: &ui::Theme,
         icon: IconSource,
         is_vertical: bool,
-        cx: &mut Context<Self>,
     ) -> AnyElement {
         let unread = self.data.unread_count;
-        let badge_color = theme.colors.accent;
 
-        ButtonLike::new("notification-widget")
-            .style(ButtonStyle::Transparent)
-            .on_click(cx.listener(|this, event: &ClickEvent, window, cx| {
-                this.toggle_center(event.position(), window, cx)
-            }))
+        style::stack(is_vertical)
+            .justify_center()
+            .gap(px(style::CHIP_GAP))
             .child(
-                style::stack(is_vertical)
-                    .justify_center()
-                    .gap(px(style::CHIP_GAP))
-                    .child(
-                        Icon::new(icon)
-                            .size(style::icon(is_vertical))
-                            .color(Color::Custom(if self.data.dnd {
-                                theme.colors.text_muted
-                            } else {
-                                theme.colors.text
-                            })),
-                    )
-                    .when(unread > 0, |el| {
-                        el.child(
-                            Label::new(unread.to_string())
-                                .size(TextSize::XSmall)
-                                .color(Color::Custom(badge_color)),
-                        )
-                    }),
+                Icon::new(icon)
+                    .size(style::icon(is_vertical))
+                    .color(Color::Custom(if self.data.dnd {
+                        theme.colors.text_muted
+                    } else {
+                        theme.colors.text
+                    })),
             )
+            .when(unread > 0, |el| {
+                el.child(
+                    Label::new(unread.to_string())
+                        .size(TextSize::XSmall)
+                        .color(Color::Custom(theme.colors.accent)),
+                )
+            })
             .into_any_element()
+    }
+
+    /// The bell icon for the current do-not-disturb state.
+    fn icon(&self, cx: &Context<Self>) -> IconSource {
+        let config = &cx.config().notification;
+        if self.data.dnd {
+            config.icons.bell_off()
+        } else {
+            config.icons.bell()
+        }
     }
 }
 
 impl BarWidget for NotificationWidget {
-    fn is_interactive(&self) -> bool {
-        true
+    fn on_click(&self, cx: &mut Context<Self>) -> Option<BarClick> {
+        Some(Box::new(cx.listener(
+            |this, event: &ClickEvent, window, cx| this.toggle_center(event.position(), window, cx),
+        )))
     }
 
     fn render_vertical(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        let config = &cx.config().notification;
-        let icon = if self.data.dnd {
-            config.icons.bell_off()
-        } else {
-            config.icons.bell()
-        };
-        self.render_widget_content(&theme, icon, true, cx)
+        let icon = self.icon(cx);
+        self.render_widget_content(&theme, icon, true)
     }
 
     fn render_horizontal(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        let config = &cx.config().notification;
-        let icon = if self.data.dnd {
-            config.icons.bell_off()
-        } else {
-            config.icons.bell()
-        };
-        self.render_widget_content(&theme, icon, false, cx)
+        let icon = self.icon(cx);
+        self.render_widget_content(&theme, icon, false)
     }
 }
 

@@ -4,15 +4,17 @@ mod card;
 mod config;
 mod panel;
 mod popup;
-mod widget;
 
 pub use config::{NotificationConfig, NotificationPopupPosition};
+pub(crate) use panel::NotificationCenter;
 pub use popup::init;
-pub use widget::NotificationWidget;
 
 use services::{NotificationCommand, NotificationSubscriber};
 
-fn dispatch_notification_command(subscriber: NotificationSubscriber, command: NotificationCommand) {
+pub(crate) fn dispatch_notification_command(
+    subscriber: NotificationSubscriber,
+    command: NotificationCommand,
+) {
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()

@@ -12,7 +12,7 @@ pub mod launcher;
 pub mod osd;
 pub mod surface;
 
-pub use bar::{BarChip, BarEdge, BarSurface};
+pub use bar::{BarChip, BarClick, BarEdge, BarSurface};
 pub use launcher::{LauncherFrame, footer_hints};
 pub use osd::OsdIndicator;
 pub use surface::PanelSurface;
