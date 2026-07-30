@@ -4,8 +4,9 @@
 //! typically used for dropdown menus, context menus, and popup dialogs.
 
 use gpui::{
-    AnyWindowHandle, App, Bounds, Pixels, Point, Render, Size, Window, WindowBackgroundAppearance,
-    WindowBounds, WindowKind, WindowOptions, layer_shell::*, point, prelude::*, px,
+    AnyWindowHandle, App, Bounds, Context, FocusHandle, Pixels, Point, Render, Size, Window,
+    WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, layer_shell::*, point,
+    prelude::*, px,
 };
 use std::sync::Mutex;
 use ui::ActiveTheme;
@@ -203,6 +204,18 @@ fn clamp_f32(value: f32, min: f32, max: f32) -> f32 {
 /// Global panel manager to ensure only one panel is open at a time.
 static ACTIVE_PANEL: Mutex<Option<(String, AnyWindowHandle)>> = Mutex::new(None);
 
+/// The panel that just closed itself, and when.
+///
+/// Clicking a bar widget whose panel is open reaches us twice: the compositor
+/// takes keyboard focus off the panel (which dismisses it) before the click
+/// lands on the bar. Without this the widget would close its panel and
+/// immediately reopen it.
+///
+/// ponytail: a time window, not event provenance - the compositor gives us no
+/// way to tell the two apart. Widen it if a slow frame ever slips through.
+static JUST_DISMISSED: Mutex<Option<(String, std::time::Instant)>> = Mutex::new(None);
+const REOPEN_GUARD: std::time::Duration = std::time::Duration::from_millis(250);
+
 /// Open a panel with the given ID and content.
 /// If a panel with the same ID is already open, it will be closed.
 /// If a different panel is open, it will be closed first.
@@ -237,6 +250,12 @@ pub fn toggle_panel_on_display<V: Render + 'static>(
         if open_id == panel_id {
             return false;
         }
+    } else if let Some((id, at)) = JUST_DISMISSED.lock().unwrap().take()
+        && closed_by_this_click(&id, at.elapsed(), panel_id)
+    {
+        // This click is what closed the panel; it is a toggle off, not a
+        // request for a new one.
+        return false;
     }
 
     // Open new panel
@@ -269,12 +288,61 @@ pub fn toggle_panel_on_display<V: Render + 'static>(
 
     if let Ok(handle) = cx.open_window(window_options, move |window, cx| {
         window.set_rem_size(cx.theme().font_size);
-        cx.new(build)
+        cx.new(|cx| {
+            // A panel is transient: the moment the compositor hands keyboard
+            // focus to something else - a click anywhere outside - it goes.
+            cx.observe_window_activation(window, |_, window, _| {
+                if !window.is_window_active() {
+                    dismiss(window);
+                }
+            })
+            .detach();
+            build(cx)
+        })
     }) {
         *guard = Some((panel_id.to_string(), handle.into()));
         true
     } else {
         false
+    }
+}
+
+/// Whether an open request for `panel_id` is really the tail of the click
+/// that just dismissed it.
+fn closed_by_this_click(dismissed_id: &str, since: std::time::Duration, panel_id: &str) -> bool {
+    dismissed_id == panel_id && since < REOPEN_GUARD
+}
+
+/// Close the panel hosted by this window, whichever one it is.
+pub fn dismiss(window: &mut Window) {
+    let handle = window.window_handle();
+    let mut guard = ACTIVE_PANEL.lock().unwrap();
+    if guard.as_ref().is_some_and(|(_, open)| *open == handle)
+        && let Some((id, _)) = guard.take()
+    {
+        *JUST_DISMISSED.lock().unwrap() = Some((id, std::time::Instant::now()));
+    }
+    drop(guard);
+    window.remove_window();
+}
+
+/// Escape-to-close plumbing for a panel view: hold one, [`arm`](Self::arm) it
+/// in `Render`, and give the handle it returns to `track_focus`.
+///
+/// A panel only sees key events once something in it holds focus, and the
+/// `Panel` key context is what binds Escape.
+pub struct PanelFocus(FocusHandle);
+
+impl PanelFocus {
+    pub fn new<V: 'static>(cx: &mut Context<V>) -> Self {
+        Self(cx.focus_handle())
+    }
+
+    pub fn arm<V: 'static>(&self, window: &mut Window, cx: &mut Context<V>) -> &FocusHandle {
+        if !self.0.is_focused(window) {
+            self.0.focus(window, cx);
+        }
+        &self.0
     }
 }
 
@@ -321,4 +389,24 @@ pub fn active_panel_id() -> Option<String> {
         .lock()
         .ok()
         .and_then(|guard| guard.as_ref().map(|(id, _)| id.clone()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn reopen_guard_only_swallows_the_click_that_closed_the_panel() {
+        // The click that dismissed it: toggle off, do not reopen.
+        assert!(closed_by_this_click("sysinfo", Duration::ZERO, "sysinfo"));
+        // A later click on the same widget opens it again.
+        assert!(!closed_by_this_click(
+            "sysinfo",
+            REOPEN_GUARD + Duration::from_millis(1),
+            "sysinfo"
+        ));
+        // A different widget always opens, however fast.
+        assert!(!closed_by_this_click("sysinfo", Duration::ZERO, "mpris"));
+    }
 }

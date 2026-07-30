@@ -60,6 +60,9 @@ pub fn register(cx: &mut App) {
         KeyBinding::new("ctrl-l", CursorRight, Some("Launcher")),
     ]);
 
+    // Every bar panel: Escape closes it.
+    cx.bind_keys([KeyBinding::new("escape", Cancel, Some("Panel"))]);
+
     // Control Center (WiFi password prompt editing).
     cx.bind_keys([
         KeyBinding::new("escape", Cancel, Some("ControlCenter")),

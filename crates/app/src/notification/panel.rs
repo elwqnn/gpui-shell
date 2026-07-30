@@ -5,19 +5,22 @@ use ui::patterns::PanelSurface;
 use ui::{ActiveTheme, Color, Icon, IconSize, Radius, Spacing, TextSize};
 
 use crate::config::ActiveConfig;
+use crate::keybinds::Cancel;
+use crate::panel::PanelFocus;
 use crate::state::watch;
 
 use super::card::notification_card_body;
 use super::dispatch_notification_command;
 
-pub(super) struct NotificationCenter {
+pub(crate) struct NotificationCenter {
     subscriber: NotificationSubscriber,
     data: NotificationData,
     scroll_handle: ScrollHandle,
+    focus: PanelFocus,
 }
 
 impl NotificationCenter {
-    pub(super) fn new(subscriber: NotificationSubscriber, cx: &mut Context<Self>) -> Self {
+    pub(crate) fn new(subscriber: NotificationSubscriber, cx: &mut Context<Self>) -> Self {
         let data = subscriber.get();
         let scroll_handle = ScrollHandle::new();
         watch(cx, subscriber.subscribe(), |this, data, cx| {
@@ -29,12 +32,14 @@ impl NotificationCenter {
             subscriber,
             data,
             scroll_handle,
+            focus: PanelFocus::new(cx),
         }
     }
 }
 
 impl Render for NotificationCenter {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl gpui::IntoElement {
+        let focus = self.focus.arm(window, cx).clone();
         let theme = cx.theme();
         let config = &cx.config().notification;
         let notifications = self.data.notifications.clone();
@@ -91,6 +96,9 @@ impl Render for NotificationCenter {
 
         div()
             .id("notification-center")
+            .track_focus(&focus)
+            .key_context("Panel")
+            .on_action(|_: &Cancel, window, _| crate::panel::dismiss(window))
             .size_full()
             .panel_surface(cx)
             .p(Spacing::Medium.pixels())

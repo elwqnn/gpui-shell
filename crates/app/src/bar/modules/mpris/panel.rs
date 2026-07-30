@@ -9,11 +9,14 @@ use ui::{
 };
 
 use crate::config::ActiveConfig;
+use crate::keybinds::Cancel;
+use crate::panel::PanelFocus;
 use crate::state::watch;
 /// Panel content for controlling media players exposed via MPRIS.
 pub struct MprisPanel {
     subscriber: MprisSubscriber,
     data: MprisData,
+    focus: PanelFocus,
 }
 
 /// Side of the square album-art slot.
@@ -28,7 +31,11 @@ impl MprisPanel {
             cx.notify();
         });
 
-        Self { subscriber, data }
+        Self {
+            subscriber,
+            data,
+            focus: PanelFocus::new(cx),
+        }
     }
 
     fn run_command(
@@ -332,12 +339,16 @@ impl MprisPanel {
 }
 
 impl Render for MprisPanel {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let focus = self.focus.arm(window, cx).clone();
         let players = self.sorted_players();
         let is_empty = players.is_empty();
 
         div()
             .id("mpris-panel")
+            .track_focus(&focus)
+            .key_context("Panel")
+            .on_action(|_: &Cancel, window, _| crate::panel::dismiss(window))
             .w_full()
             .h_full()
             .p(Spacing::XLarge.pixels())
