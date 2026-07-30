@@ -3,7 +3,8 @@
 //! Lives beside its widget, like every other bar module's panel.
 
 use gpui::{
-    AvailableSpace, Context, ElementId, Render, SharedString, Size, Window, div, prelude::*, px,
+    AvailableSpace, Context, ElementId, Render, SharedString, Size, Window, div,
+    layer_shell::Anchor, prelude::*, px,
 };
 use services::{MenuLayout, MenuLayoutProps, TrayCommand};
 use ui::patterns::PanelSurface;
@@ -29,6 +30,9 @@ pub(super) struct TrayMenuPanel {
     /// Track which submenus are expanded (by menu ID)
     expanded_submenus: Vec<i32>,
     focus: PanelFocus,
+    /// Which edge of its window the menu grows from - the same edge the
+    /// compositor anchored the window to.
+    anchored_bottom: bool,
 }
 
 impl TrayMenuPanel {
@@ -36,6 +40,7 @@ impl TrayMenuPanel {
         menu: MenuLayout,
         item_name: String,
         subscriber: services::TraySubscriber,
+        anchor: Anchor,
         cx: &mut Context<Self>,
     ) -> Self {
         // Subscribe to tray data updates so the menu refreshes live
@@ -56,6 +61,7 @@ impl TrayMenuPanel {
             subscriber,
             expanded_submenus: Vec::new(),
             focus: PanelFocus::new(cx),
+            anchored_bottom: anchor.contains(Anchor::BOTTOM),
         }
     }
 
@@ -245,7 +251,7 @@ impl Render for TrayMenuPanel {
 
         // Built twice: once to measure the menu, once to show it. The card
         // scrolls itself, so its own `max_h` is what bounds a long menu.
-        let build_root = |cx: &mut Context<Self>| {
+        let build_card = |cx: &mut Context<Self>| {
             let menu_items = self.render_menu_items(&self.menu.2, 0, cx);
 
             div()
@@ -267,9 +273,8 @@ impl Render for TrayMenuPanel {
                 )
         };
 
-        // A three-entry menu should not open a 400px card. The window keeps
-        // the anchor it was placed on, so it grows and shrinks from there.
-        let content_height = build_root(cx)
+        // A three-entry menu should not open a 400px card.
+        let content_height = build_card(cx)
             .into_any_element()
             .layout_as_root(
                 Size {
@@ -288,6 +293,15 @@ impl Render for TrayMenuPanel {
             window.resize(desired);
         }
 
-        build_root(cx)
+        // The window is still at its opening height for this frame, and the
+        // resize will pull the edge it is *not* anchored to. Painting the card
+        // against the anchored edge is what keeps it still: without this it
+        // shows up at the top of a 400px window, then drops onto its anchor.
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .when(self.anchored_bottom, |el| el.justify_end())
+            .child(build_card(cx))
     }
 }

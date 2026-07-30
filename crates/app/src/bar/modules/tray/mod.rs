@@ -65,7 +65,7 @@ impl Tray {
             };
 
             toggle_panel(&panel_id, config, cx, move |cx| {
-                TrayMenuPanel::new(menu, item_name, subscriber, cx)
+                TrayMenuPanel::new(menu, item_name, subscriber, anchor, cx)
             });
         } else {
             // No menu — activate the item directly (e.g. show window)
