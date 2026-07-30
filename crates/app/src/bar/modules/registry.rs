@@ -6,8 +6,8 @@
 use gpui::{AnyElement, Context, Entity, prelude::*};
 
 use super::{
-    ActiveWindow, Battery, Clock, KeyboardLayout, LauncherBtn, Mpris, NotificationWidget, Settings,
-    SysInfo, Tray, Workspaces,
+    ActiveWindow, Battery, Clock, ControlCenter, KeyboardLayout, LauncherBtn, Mpris,
+    NotificationWidget, SysInfo, Tray, Workspaces,
 };
 
 /// Wrapper enum for all possible widget types.
@@ -25,7 +25,7 @@ pub enum Widget {
     SysInfo(Entity<SysInfo>),
     LauncherBtn(Entity<LauncherBtn>),
     Notification(Entity<NotificationWidget>),
-    Settings(Entity<Settings>),
+    ControlCenter(Entity<ControlCenter>),
     Mpris(Entity<Mpris>),
 }
 
@@ -44,7 +44,7 @@ impl Widget {
             Widget::SysInfo(e) => e.clone().into_any_element(),
             Widget::LauncherBtn(e) => e.clone().into_any_element(),
             Widget::Notification(e) => e.clone().into_any_element(),
-            Widget::Settings(e) => e.clone().into_any_element(),
+            Widget::ControlCenter(e) => e.clone().into_any_element(),
             Widget::Mpris(e) => e.clone().into_any_element(),
         }
     }
@@ -66,7 +66,10 @@ impl Widget {
             "Notification" | "Notifications" => {
                 Some(Widget::Notification(cx.new(NotificationWidget::new)))
             }
-            "Settings" | "Info" | "ControlCenter" => Some(Widget::Settings(cx.new(Settings::new))),
+            // `Settings` and `Info` predate the widget's current name.
+            "ControlCenter" | "Settings" | "Info" => {
+                Some(Widget::ControlCenter(cx.new(ControlCenter::new)))
+            }
             _ => {
                 tracing::warn!("Unknown widget: {}", name);
                 None

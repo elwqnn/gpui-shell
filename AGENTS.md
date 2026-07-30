@@ -75,10 +75,15 @@ again), and `gpuishell --validate` prints where the parse gave up.
   modules
 - **Launcher** (`crates/app/src/launcher/`) — Prefix-based command launcher
   (views implement `LauncherView` trait)
-- **Control Center** (`crates/app/src/control_center/`) — Popup panels for
-  system controls
+- **Control Center** (`crates/app/src/bar/modules/control_center/`) — Popup
+  panels for system controls
 - **Panel System** (`crates/app/src/panel.rs`) — Only one panel open at a time
 - **OSD** (`crates/app/src/osd/`) — Volume/brightness on-screen indicators
+
+A top-level module in `app` is one *surface* - a window the shell maps. A bar
+widget is `bar/modules/<name>/` (`mod.rs` + `config.rs`, plus `panel.rs` for
+the panel it opens); the panel lives with its widget unless it is a surface in
+its own right, which is why notification popups stay in `notification/`.
 
 Their chrome lives in `ui::patterns` (`LauncherFrame`, `BarSurface`/`BarChip`,
 `OsdIndicator`, `PanelSurface`); state, keybindings and config stay in `app`.
