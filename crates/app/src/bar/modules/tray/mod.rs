@@ -19,7 +19,7 @@ use super::{BarWidget, BarWidgetShell, style};
 use crate::config::{ActiveConfig, Config};
 use crate::state::AppState;
 use crate::state::watch;
-use panel::TrayMenuPanel;
+use panel::{TRAY_MENU_MAX_HEIGHT, TRAY_MENU_WIDTH, TrayMenuPanel};
 
 /// System tray widget that displays tray icons.
 pub struct Tray {
@@ -50,13 +50,15 @@ impl Tray {
             let subscriber = self.subscriber.clone();
             let item_name = item.name.clone();
             let config = Config::global(cx);
-            let panel_size = Size::new(px(250.0), px(400.0));
+            // Opened at its ceiling so the compositor never places it off
+            // screen; the panel shrinks to its menu on the first frame.
+            let panel_size = Size::new(px(TRAY_MENU_WIDTH), px(TRAY_MENU_MAX_HEIGHT));
             let (anchor, margin) =
                 panel_placement_from_event(config.bar.position, at, window, cx, panel_size);
 
             let config = PanelConfig {
-                width: 250.0,
-                height: 400.0,
+                width: TRAY_MENU_WIDTH,
+                height: TRAY_MENU_MAX_HEIGHT,
                 anchor,
                 margin,
                 namespace: "systray-menu".to_string(),

@@ -2,7 +2,9 @@
 //!
 //! Lives beside its widget, like every other bar module's panel.
 
-use gpui::{Context, ElementId, Render, SharedString, Window, div, prelude::*};
+use gpui::{
+    AvailableSpace, Context, ElementId, Render, SharedString, Size, Window, div, prelude::*, px,
+};
 use services::{MenuLayout, MenuLayoutProps, TrayCommand};
 use ui::patterns::PanelSurface;
 use ui::{
@@ -13,6 +15,11 @@ use ui::{
 use crate::keybinds::Cancel;
 use crate::panel::PanelFocus;
 use crate::state::watch;
+
+/// The menu card's width. Fixed: only the height follows the content.
+pub(super) const TRAY_MENU_WIDTH: f32 = 250.0;
+/// How tall the menu may grow before it starts scrolling instead.
+pub(super) const TRAY_MENU_MAX_HEIGHT: f32 = 400.0;
 
 /// Panel content for displaying a tray item's menu.
 pub(super) struct TrayMenuPanel {
@@ -235,29 +242,52 @@ fn render_menu_item(
 impl Render for TrayMenuPanel {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let focus = self.focus.arm(window, cx).clone();
-        let menu_items = self.render_menu_items(&self.menu.2, 0, cx);
-        let theme = cx.theme();
 
-        div()
-            .id("systray-menu-panel")
-            .track_focus(&focus)
-            .key_context("Panel")
-            .on_action(|_: &Cancel, window, _| crate::panel::dismiss(window))
-            .size_full()
-            .panel_surface(cx)
-            .text_color(theme.colors.text)
-            .overflow_hidden()
-            .child(
-                div()
-                    .id("systray-menu-scroll")
-                    .size_full()
-                    .py(Spacing::XSmall.pixels())
-                    .overflow_y_scroll()
-                    .child(
-                        List::new()
-                            .empty_message("This item has no menu")
-                            .children(menu_items),
-                    ),
+        // Built twice: once to measure the menu, once to show it. The card
+        // scrolls itself, so its own `max_h` is what bounds a long menu.
+        let build_root = |cx: &mut Context<Self>| {
+            let menu_items = self.render_menu_items(&self.menu.2, 0, cx);
+
+            div()
+                .id("systray-menu-panel")
+                .track_focus(&focus)
+                .key_context("Panel")
+                .on_action(|_: &Cancel, window, _| crate::panel::dismiss(window))
+                .w_full()
+                .max_h(px(TRAY_MENU_MAX_HEIGHT))
+                .py(Spacing::XSmall.pixels())
+                .panel_surface(cx)
+                .text_color(cx.theme().colors.text)
+                .overflow_x_hidden()
+                .overflow_y_scroll()
+                .child(
+                    List::new()
+                        .empty_message("This item has no menu")
+                        .children(menu_items),
+                )
+        };
+
+        // A three-entry menu should not open a 400px card. The window keeps
+        // the anchor it was placed on, so it grows and shrinks from there.
+        let content_height = build_root(cx)
+            .into_any_element()
+            .layout_as_root(
+                Size {
+                    width: AvailableSpace::Definite(px(TRAY_MENU_WIDTH)),
+                    height: AvailableSpace::MaxContent,
+                },
+                window,
+                cx,
             )
+            .height;
+        let desired = Size::new(
+            px(TRAY_MENU_WIDTH),
+            content_height.min(px(TRAY_MENU_MAX_HEIGHT)),
+        );
+        if window.viewport_size() != desired {
+            window.resize(desired);
+        }
+
+        build_root(cx)
     }
 }
