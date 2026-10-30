@@ -3,6 +3,7 @@
 use std::rc::Rc;
 use std::time::Duration;
 
+use crate::styles::Motion;
 use crate::theme::{ActiveTheme, Color, Spacing};
 use gpui::{
     Animation, AnimationExt as _, App, ElementId, IntoElement, Pixels, RenderOnce, SharedString,
@@ -15,7 +16,7 @@ use crate::theme::TextSize;
 use crate::traits::{Disableable, ToggleHandler, ToggleState, Toggleable};
 
 /// How long the knob takes to slide between positions.
-const SLIDE_DURATION: Duration = Duration::from_millis(150);
+const SLIDE_DURATION: Duration = Motion::Quick.duration();
 
 /// Size variants for the switch.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]

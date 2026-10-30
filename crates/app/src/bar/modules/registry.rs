@@ -30,6 +30,26 @@ pub enum Widget {
 }
 
 impl Widget {
+    /// Every widget a bar section can name, in the spelling the settings UI
+    /// offers and writes. [`Widget::create`] also takes the older aliases.
+    ///
+    /// ponytail: a config that spells one of these by an alias - `Tray` for
+    /// `Systray` - shows its chip unlit. Canonicalize in `create` if that
+    /// starts confusing people.
+    pub const ALL: &'static [&'static str] = &[
+        "LauncherBtn",
+        "Workspaces",
+        "ActiveWindow",
+        "SysInfo",
+        "Clock",
+        "Mpris",
+        "Battery",
+        "KeyboardLayout",
+        "Notifications",
+        "Systray",
+        "ControlCenter",
+    ];
+
     /// Render the widget to an AnyElement.
     ///
     /// This allows uniform rendering regardless of the underlying widget type.

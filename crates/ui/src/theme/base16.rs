@@ -306,12 +306,30 @@ fn status_triplet(fg: Hsla) -> (Hsla, Hsla, Hsla) {
 }
 
 impl Default for Base16Palette {
-    /// The canonical `base16-default-dark` scheme, used when no theme file
-    /// exists yet and as the fallback when one fails to parse.
+    /// The house scheme, used when no theme file exists yet and as the
+    /// fallback when one fails to parse. An earthen palette of six hues in
+    /// three shades each, plus black, white and a grey-green accent.
+    ///
+    /// The eight accent slots take whichever shade carries its hue best on a
+    /// black background: the mid shades for the warm hues, the light ones for
+    /// the cool hues, whose mid shades are too dark to read. The surface ramp
+    /// is interpolated black → accent → white, since the palette supplies
+    /// only those three neutrals.
     fn default() -> Self {
         Self::from_hex(&[
-            "#181818", "#282828", "#383838", "#585858", "#b8b8b8", "#d8d8d8", "#e8e8e8", "#f8f8f8",
-            "#ab4642", "#dc9656", "#f7ca88", "#a1b56c", "#86c1b9", "#7cafc2", "#ba8baf", "#a16946",
+            "#000000", // black
+            "#1c1b18", "#33322d", "#6b6b62", //
+            "#9fa094", // accent
+            "#e4dcc8", // white
+            "#efe9da", "#f8f5ec", //
+            "#ba4c3e", // red02
+            "#e49926", // yellow02, the palette's true orange
+            "#f7bb66", // yellow03
+            "#817e4c", // green02
+            "#a9bab3", // blue03
+            "#9797ba", // purple03 - the accent hue, kept clear of base04
+            "#5e5a7a", // purple02
+            "#b4744c", // brown02
         ])
         .expect("the built-in default palette must parse")
     }

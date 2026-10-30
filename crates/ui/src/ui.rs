@@ -11,7 +11,7 @@ pub use components::*;
 // `patterns` is intentionally not re-exported: composite, shell-specific
 // surfaces stay behind `ui::patterns::` so they never blend into the
 // primitive set. See the module docs.
-pub use styles::ElevationIndex;
+pub use styles::{ElevationIndex, Motion, motion};
 pub use theme::{
     ActiveTheme, Appearance, Base16Palette, Color, IconSize, Radius, Spacing, StatusColors,
     StatusColorsRefinement, StoredTheme, TextSize, Theme, ThemeColors, ThemeColorsRefinement,

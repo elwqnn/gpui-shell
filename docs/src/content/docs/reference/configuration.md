@@ -10,6 +10,26 @@ GPUi Shell loads configuration from:
 
 If the file does not exist, it is created with defaults on startup. Changes are hot-reloaded automatically.
 
+`config.toml` is the source of truth: the [settings
+window](/reference/control-center/#settings-window) writes changes back into this
+file, in place, leaving your comments and key order alone. What the shell
+persists on its own and you never write by hand - dock pins, service modes set
+from `;s` - goes to `state.toml` beside it.
+
+## `[panels]`
+
+The popups the bar modules open (sysinfo, media, notifications, control center)
+share one look: no title bar, the same inset, the same gap between blocks.
+
+| Option       | Type   | Default | Description                                          |
+| ------------ | ------ | ------- | ---------------------------------------------------- |
+| `background` | `bool` | `true`  | Paint the panel's own background and border. Off leaves only the content, for a compositor that already paints behind it. |
+
+```toml
+[panels]
+background = true
+```
+
 ## `config.toml` example
 
 ```toml

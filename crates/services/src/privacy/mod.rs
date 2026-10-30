@@ -3,8 +3,11 @@
 //! This module provides a reactive subscriber for tracking media stream access
 //! via PipeWire and webcam device usage via inotify.
 
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
+use std::rc::Rc;
 use std::thread;
 
 use futures_signals::signal::{Mutable, MutableSignalCloned};
@@ -131,15 +134,60 @@ fn start_pipewire_listener(data: Mutable<PrivacyData>, token: RunToken) {
     });
 }
 
+/// What a PipeWire node's properties say it is capturing, if it is worth an
+/// indicator at all.
+///
+/// A capture stream reading the sink's own output - a visualiser, a recorder
+/// taking desktop sound - is still `Stream/Input/Audio`, but PipeWire marks it
+/// with `stream.capture.sink` and it never touches the microphone.
+fn captured_media(media_class: &str, capture_sink: Option<&str>) -> Option<Media> {
+    match media_class {
+        "Stream/Input/Video" => Some(Media::Video),
+        "Stream/Input/Audio" => {
+            (!matches!(capture_sink, Some("true" | "1"))).then_some(Media::Audio)
+        }
+        _ => None,
+    }
+}
+
+/// Add or drop a node in the published list, leaving it alone when nothing
+/// changes: `info` repeats on every property update and every write here wakes
+/// the subscribers.
+fn track_node(data: &Mutable<PrivacyData>, id: u32, media: Option<Media>) {
+    let tracked = data.lock_ref().nodes.iter().any(|n| n.id == id);
+
+    match media {
+        Some(media) if !tracked => {
+            debug!("New media node: id={id}, media={media:?}");
+            data.lock_mut().nodes.push(ApplicationNode { id, media });
+        }
+        None if tracked => {
+            debug!("Removed tracked media node: {id}");
+            data.lock_mut().nodes.retain(|n| n.id != id);
+        }
+        _ => {}
+    }
+}
+
 /// Run the PipeWire listener (blocking).
+///
+/// The registry event only carries a whitelist of a node's properties, and
+/// `stream.capture.sink` is not on it, so every capture stream has to be bound
+/// to find out whether it is really the microphone. The proxy and its listener
+/// live in `bound` until the node goes away.
 fn run_pipewire_listener(data: Mutable<PrivacyData>, token: RunToken) -> anyhow::Result<()> {
-    use pipewire::{context::ContextBox, main_loop::MainLoopBox};
+    use pipewire::context::ContextRc;
+    use pipewire::main_loop::MainLoopRc;
+    use pipewire::node::{Node, NodeListener};
 
-    let mainloop = MainLoopBox::new(None)?;
-    let context = ContextBox::new(mainloop.loop_(), None)?;
-    let core = context.connect(None)?;
-    let registry = core.get_registry()?;
+    let mainloop = MainLoopRc::new(None)?;
+    let context = ContextRc::new(&mainloop, None)?;
+    let core = context.connect_rc(None)?;
+    let registry = core.get_registry_rc()?;
 
+    let bound: Rc<RefCell<HashMap<u32, (Node, NodeListener)>>> = Rc::default();
+    let bound_remove = bound.clone();
+    let registry_bind = registry.clone();
     let data_add = data.clone();
     let data_remove = data.clone();
     let token_add = token.clone();
@@ -150,33 +198,41 @@ fn run_pipewire_listener(data: Mutable<PrivacyData>, token: RunToken) -> anyhow:
             if !token_add.alive() {
                 return;
             }
-            if let Some(props) = global.props
-                && let Some(media_class) = props.get("media.class")
-            {
-                let is_video = media_class == "Stream/Input/Video";
-                let is_audio = media_class == "Stream/Input/Audio";
-
-                if is_video || is_audio {
-                    debug!("New media node: id={}, class={}", global.id, media_class);
-                    let node = ApplicationNode {
-                        id: global.id,
-                        media: if is_video { Media::Video } else { Media::Audio },
-                    };
-                    data_add.lock_mut().nodes.push(node);
-                }
+            let Some(class) = global.props.and_then(|props| props.get("media.class")) else {
+                return;
+            };
+            if !matches!(class, "Stream/Input/Video" | "Stream/Input/Audio") {
+                return;
             }
+
+            let node: Node = match registry_bind.bind(global) {
+                Ok(node) => node,
+                Err(e) => {
+                    warn!("Could not bind media node {}: {}", global.id, e);
+                    return;
+                }
+            };
+
+            let id = global.id;
+            let data = data_add.clone();
+            let listener = node
+                .add_listener_local()
+                .info(move |info| {
+                    let media = info.props().and_then(|props| {
+                        captured_media(props.get("media.class")?, props.get("stream.capture.sink"))
+                    });
+                    track_node(&data, id, media);
+                })
+                .register();
+
+            bound.borrow_mut().insert(id, (node, listener));
         })
         .global_remove(move |id| {
             if !token.alive() {
                 return;
             }
-            let mut guard = data_remove.lock_mut();
-            let before_len = guard.nodes.len();
-            guard.nodes.retain(|n| n.id != id);
-            // Only log if we actually removed a tracked media node
-            if guard.nodes.len() < before_len {
-                debug!("Removed tracked media node: {}", id);
-            }
+            bound_remove.borrow_mut().remove(&id);
+            track_node(&data_remove, id, None);
         })
         .register();
 
@@ -272,4 +328,24 @@ fn is_device_in_use(target: &str) -> i32 {
     }
 
     used_by
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_sink_monitor_is_not_the_microphone() {
+        assert_eq!(
+            captured_media("Stream/Input/Audio", None),
+            Some(Media::Audio)
+        );
+        assert_eq!(captured_media("Stream/Input/Audio", Some("true")), None);
+        assert_eq!(captured_media("Stream/Input/Audio", Some("1")), None);
+        assert_eq!(
+            captured_media("Stream/Input/Video", None),
+            Some(Media::Video)
+        );
+        assert_eq!(captured_media("Stream/Output/Audio", None), None);
+    }
 }

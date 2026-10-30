@@ -109,6 +109,7 @@ pub(crate) struct Services {
     pub network: services::NetworkSubscriber,
     pub notification: services::NotificationSubscriber,
     pub privacy: services::PrivacySubscriber,
+    pub spectrum: services::SpectrumSubscriber,
     pub sysinfo: services::SysInfoSubscriber,
     pub tray: services::TraySubscriber,
     pub upower: services::UPowerSubscriber,
@@ -120,7 +121,7 @@ impl Services {
     ///
     /// NOTE: keep in sync with the struct above - a new field is not added
     /// here automatically.
-    pub(crate) fn managed(&self) -> [&dyn ManagedService; 12] {
+    pub(crate) fn managed(&self) -> [&dyn ManagedService; 13] {
         [
             &self.audio,
             &self.network,
@@ -130,6 +131,7 @@ impl Services {
             &self.notification,
             &self.tray,
             &self.sysinfo,
+            &self.spectrum,
             &self.privacy,
             &self.wallpaper,
             &self.brightness,
@@ -155,6 +157,7 @@ pub(crate) async fn init_services() -> anyhow::Result<Services> {
         network: services::NetworkSubscriber::new(),
         notification: services::NotificationSubscriber::new(),
         privacy: services::PrivacySubscriber::new(),
+        spectrum: services::SpectrumSubscriber::new(),
         sysinfo: services::SysInfoSubscriber::new(),
         tray: services::TraySubscriber::new(),
         upower: services::UPowerSubscriber::new(),
@@ -209,7 +212,10 @@ impl AppState {
                 continue;
             }
 
-            let mode = State::service_mode(service.name(), cx);
+            // Unconfigured keeps whatever the service declared for itself: a
+            // spectrum analyser is lazy on purpose and must not be made eager
+            // by the absence of a line in `config.toml`.
+            let mode = State::service_mode(service.name(), cx).unwrap_or(service.mode());
             service.lifecycle().set_mode(mode);
             if mode == ServiceMode::Eager {
                 service.start();
@@ -218,7 +224,7 @@ impl AppState {
     }
 
     /// Every service, for the launcher's services view.
-    pub fn managed_services(cx: &App) -> [&dyn ManagedService; 12] {
+    pub fn managed_services(cx: &App) -> [&dyn ManagedService; 13] {
         Self::services(cx).managed()
     }
 
@@ -269,6 +275,13 @@ impl AppState {
         let service = &Self::services(cx).mpris;
         service.ensure_started();
         service
+    }
+
+    /// The spectrum analyser. Deliberately not started on access: a visualiser
+    /// brings it up when it is on screen and stops it when it leaves.
+    #[inline(always)]
+    pub fn spectrum(cx: &App) -> &services::SpectrumSubscriber {
+        &Self::services(cx).spectrum
     }
 
     #[inline(always)]

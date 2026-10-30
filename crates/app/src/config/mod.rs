@@ -1,6 +1,7 @@
 //! Application configuration stored as a GPUI global.
 
 mod persistence;
+mod settings;
 mod state;
 mod theme;
 
@@ -12,6 +13,8 @@ use serde::{Deserialize, Serialize};
 use services::{FileWatcher, LocalSlot, ServiceMode};
 use ui::{StoredTheme, Theme};
 
+pub use persistence::config_path;
+pub use settings::{Setting, flatten, parse_value};
 pub use state::State;
 
 use crate::state::AppState;
@@ -22,6 +25,7 @@ pub use crate::dock::DockConfig;
 pub use crate::launcher::config::LauncherConfig;
 pub use crate::notification::{NotificationConfig, NotificationPopupPosition};
 pub use crate::osd::{OsdConfig, OsdPosition};
+pub use crate::panel::PanelsConfig;
 
 /// Root application configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,6 +37,7 @@ pub struct Config {
     pub notification: NotificationConfig,
     pub control_center: ControlCenterConfig,
     pub dock: DockConfig,
+    pub panels: PanelsConfig,
     /// Startup mode per service, keyed by the lowercased service name
     /// (`audio`, `tray`, ...). Services absent from the map start eagerly.
     /// Setting a mode from `;s` writes `state.toml`, which then overrides
@@ -53,6 +58,7 @@ impl Default for Config {
             notification: NotificationConfig::default(),
             control_center: ControlCenterConfig::default(),
             dock: DockConfig::default(),
+            panels: PanelsConfig::default(),
             services: BTreeMap::new(),
             watch_config: true,
             watch_theme: true,
@@ -112,6 +118,19 @@ impl Config {
                 notify_parse_failure(LocalSlot::ConfigError, "config.toml", &err, cx);
             }
         }
+    }
+
+    /// Change one setting in `config.toml`, or remove it with `None` to bring
+    /// its default back. The file is the source of truth, so the change goes
+    /// there first and the running config follows.
+    pub fn set(path: &str, value: Option<toml::Value>, cx: &mut App) -> anyhow::Result<()> {
+        let config = settings::write(path, value)?;
+        *cx.global_mut::<Config>() = config;
+        // Same as a hot reload: the windows already up read the config in
+        // their render, and nothing tells them it moved. The watcher fires
+        // for our own write too, and lands on the same values.
+        cx.refresh_windows();
+        Ok(())
     }
 
     /// Reload theme from disk and replace the global theme.

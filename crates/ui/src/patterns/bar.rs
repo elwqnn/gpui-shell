@@ -36,6 +36,7 @@ enum Align {
 pub struct BarSurface {
     edge: BarEdge,
     border: bool,
+    opacity: f32,
     padding: Pixels,
     start: Vec<AnyElement>,
     center: Vec<AnyElement>,
@@ -47,6 +48,7 @@ impl BarSurface {
         Self {
             edge,
             border: false,
+            opacity: 1.,
             padding: px(0.),
             start: Vec::new(),
             center: Vec::new(),
@@ -57,6 +59,13 @@ impl BarSurface {
     /// Draw the hairline on the screen-facing edge.
     pub fn border(mut self, border: bool) -> Self {
         self.border = border;
+        self
+    }
+
+    /// How much of the bar's own fill shows: `0.` leaves only the widgets,
+    /// over whatever the compositor paints behind.
+    pub fn opacity(mut self, opacity: f32) -> Self {
+        self.opacity = opacity.clamp(0., 1.);
         self
     }
 
@@ -95,7 +104,7 @@ impl RenderOnce for BarSurface {
             .text_size(TextSize::Small.rems())
             .font_weight(FontWeight::MEDIUM)
             .text_color(colors.text)
-            .bg(colors.background)
+            .bg(colors.background.opacity(self.opacity))
             .border_color(colors.border);
 
         let root = if vertical {

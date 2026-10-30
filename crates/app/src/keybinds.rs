@@ -63,25 +63,33 @@ pub fn register(cx: &mut App) {
     // Every bar panel: Escape closes it.
     cx.bind_keys([KeyBinding::new("escape", Cancel, Some("Panel"))]);
 
-    // Control Center (WiFi password prompt editing).
-    cx.bind_keys([
-        KeyBinding::new("escape", Cancel, Some("ControlCenter")),
-        KeyBinding::new("enter", Confirm, Some("ControlCenter")),
-        KeyBinding::new("backspace", Backspace, Some("ControlCenter")),
-        KeyBinding::new("ctrl-backspace", DeleteWordBack, Some("ControlCenter")),
-        KeyBinding::new("left", CursorLeft, Some("ControlCenter")),
-        KeyBinding::new("right", CursorRight, Some("ControlCenter")),
-        KeyBinding::new("ctrl-left", WordLeft, Some("ControlCenter")),
-        KeyBinding::new("ctrl-right", WordRight, Some("ControlCenter")),
-        KeyBinding::new("ctrl-shift-left", SelectWordLeft, Some("ControlCenter")),
-        KeyBinding::new("ctrl-shift-right", SelectWordRight, Some("ControlCenter")),
-        KeyBinding::new("ctrl-b", WordLeft, Some("ControlCenter")),
-        KeyBinding::new("ctrl-w", WordRight, Some("ControlCenter")),
-        KeyBinding::new("ctrl-a", SelectAll, Some("ControlCenter")),
-        KeyBinding::new("shift-left", SelectLeft, Some("ControlCenter")),
-        KeyBinding::new("shift-right", SelectRight, Some("ControlCenter")),
-        KeyBinding::new("ctrl-f", CursorRight, Some("ControlCenter")),
-        KeyBinding::new("ctrl-h", CursorLeft, Some("ControlCenter")),
-        KeyBinding::new("ctrl-l", CursorRight, Some("ControlCenter")),
-    ]);
+    // The control center's WiFi password prompt, and the settings window's
+    // value rows: same buffer, same keys.
+    for context in ["ControlCenter", "Settings"] {
+        cx.bind_keys(editing_keys(context));
+    }
+}
+
+/// Escape, Enter and the text-editing keys, bound in one key context.
+fn editing_keys(context: &'static str) -> Vec<KeyBinding> {
+    vec![
+        KeyBinding::new("escape", Cancel, Some(context)),
+        KeyBinding::new("enter", Confirm, Some(context)),
+        KeyBinding::new("backspace", Backspace, Some(context)),
+        KeyBinding::new("ctrl-backspace", DeleteWordBack, Some(context)),
+        KeyBinding::new("left", CursorLeft, Some(context)),
+        KeyBinding::new("right", CursorRight, Some(context)),
+        KeyBinding::new("ctrl-h", CursorLeft, Some(context)),
+        KeyBinding::new("ctrl-l", CursorRight, Some(context)),
+        KeyBinding::new("ctrl-f", CursorRight, Some(context)),
+        KeyBinding::new("ctrl-left", WordLeft, Some(context)),
+        KeyBinding::new("ctrl-right", WordRight, Some(context)),
+        KeyBinding::new("ctrl-b", WordLeft, Some(context)),
+        KeyBinding::new("ctrl-w", WordRight, Some(context)),
+        KeyBinding::new("ctrl-a", SelectAll, Some(context)),
+        KeyBinding::new("shift-left", SelectLeft, Some(context)),
+        KeyBinding::new("shift-right", SelectRight, Some(context)),
+        KeyBinding::new("ctrl-shift-left", SelectWordLeft, Some(context)),
+        KeyBinding::new("ctrl-shift-right", SelectWordRight, Some(context)),
+    ]
 }

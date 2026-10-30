@@ -2,7 +2,12 @@
 
 use gpui::{App, Styled};
 
-use crate::{ActiveTheme, Radius};
+use crate::{ActiveTheme, Radius, Spacing};
+
+/// The inset every panel a bar module opens paints its content in.
+pub const PANEL_PADDING: Spacing = Spacing::Large;
+/// The gap between a panel's blocks.
+pub const PANEL_GAP: Spacing = Spacing::Medium;
 
 /// The two surface levels the shell paints with.
 pub trait PanelSurface: Styled + Sized {
@@ -13,6 +18,21 @@ pub trait PanelSurface: Styled + Sized {
             .border_1()
             .border_color(colors.border)
             .rounded(Radius::Large.pixels())
+    }
+
+    /// The panel a bar module opens: sysinfo, mpris, the notification centre,
+    /// the control center and its settings all wear this, so they read as one
+    /// surface - same inset, same gap between blocks, no title bar.
+    ///
+    /// `background` is the config's: turned off, the panel keeps its layout
+    /// and drops its own fill, leaving whatever the compositor paints behind.
+    fn bar_panel(self, background: bool, cx: &App) -> Self {
+        let panel = self.p(PANEL_PADDING.pixels()).gap(PANEL_GAP.pixels());
+
+        match background {
+            true => panel.panel_surface(cx),
+            false => panel.rounded(Radius::Large.pixels()),
+        }
     }
 
     /// A card *inside* a panel - one slider, one expanded section.

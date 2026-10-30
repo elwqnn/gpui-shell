@@ -1,7 +1,6 @@
 //! Spinner - an animated loading indicator.
 
-use std::time::Duration;
-
+use crate::styles::Motion;
 use crate::theme::{ActiveTheme, Color};
 use gpui::{
     Animation, AnimationExt, App, IntoElement, RenderOnce, Styled, Transformation, Window,
@@ -70,7 +69,7 @@ impl RenderOnce for Spinner {
             .text_color(hsla)
             .with_animation(
                 "spinner-rotate",
-                Animation::new(Duration::from_secs(1)).repeat(),
+                Animation::new(Motion::Spin.duration()).repeat(),
                 |svg, delta| svg.with_transformation(Transformation::rotate(percentage(delta))),
             )
     }

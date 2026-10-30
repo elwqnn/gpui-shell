@@ -12,12 +12,13 @@ pub use config::SysInfoConfig;
 
 use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
-use crate::panel::panel_placement_from_event;
+use crate::panel::panel_anchor;
 use crate::state::AppState;
 use crate::state::watch;
 
 mod panel;
 pub use panel::SysInfoPanel;
+use panel::{SYSINFO_PANEL_HEIGHT, SYSINFO_PANEL_WIDTH};
 
 /// SysInfo widget showing CPU and memory usage in the bar.
 pub struct SysInfo {
@@ -51,16 +52,14 @@ impl SysInfo {
 
     fn toggle_panel(&mut self, at: Point<Pixels>, window: &Window, cx: &mut App) {
         let subscriber = self.subscriber.clone();
-        let config = Config::global(cx);
-        let panel_size = Size::new(px(350.0), px(450.0));
-        let (anchor, margin) =
-            panel_placement_from_event(config.bar.position, at, window, cx, panel_size);
+        let bar_position = Config::global(cx).bar.position;
+        let (anchor_rect, anchor, gravity) = panel_anchor(bar_position, at, window.viewport_size());
         let config = PanelConfig {
-            width: 350.0,
-            height: 450.0,
+            parent: window.window_handle(),
+            anchor_rect,
             anchor,
-            margin,
-            namespace: "sysinfo-panel".to_string(),
+            gravity,
+            size: Size::new(px(SYSINFO_PANEL_WIDTH), px(SYSINFO_PANEL_HEIGHT)),
         };
 
         toggle_panel("sysinfo", config, cx, move |cx| {

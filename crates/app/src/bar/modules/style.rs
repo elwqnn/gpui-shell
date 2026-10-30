@@ -23,18 +23,31 @@ pub const GROUP_GAP: f32 = Spacing::XSmall.value();
 pub const TRAY_ITEM_SIZE: f32 = 24.0;
 /// Workspace pill height.
 pub const WORKSPACE_PILL_HEIGHT: f32 = 20.0;
-/// Workspace pill width (inactive).
-pub const WORKSPACE_PILL_WIDTH: f32 = 20.0;
-/// Workspace pill width (active).
-pub const WORKSPACE_PILL_WIDTH_ACTIVE: f32 = 24.0;
-/// Horizontal workspace pill width (inactive).
-pub const WORKSPACE_PILL_WIDTH_HORIZONTAL: f32 = 22.0;
-/// Horizontal workspace pill width (active).
-pub const WORKSPACE_PILL_WIDTH_HORIZONTAL_ACTIVE: f32 = 28.0;
+/// Inner padding of a labelled workspace pill, so a name wider than the pill
+/// grows it instead of spilling over the edges.
+pub const WORKSPACE_PILL_PADDING_X: f32 = 5.0;
+/// Dot a workspace pill shrinks to when it carries no label.
+pub const WORKSPACE_DOT: f32 = 6.0;
+/// Smaller dot for a workspace holding no windows.
+pub const WORKSPACE_DOT_EMPTY: f32 = 4.0;
+/// Length of the active workspace's dash, along the bar's long axis.
+pub const WORKSPACE_DASH: f32 = 14.0;
 /// Horizontal section divider height.
 pub const SECTION_DIVIDER_HEIGHT: f32 = 14.0;
 /// Fixed text line width for vertically stacked labels so each line shares one center axis.
 pub const VERTICAL_TEXT_LINE_WIDTH: f32 = 20.0;
+
+/// Minimum width of a workspace pill: the active one is wider, so which
+/// workspace is focused reads at a glance even when every label is one digit.
+#[inline(always)]
+pub fn workspace_pill_width(is_vertical: bool, is_active: bool) -> f32 {
+    match (is_vertical, is_active) {
+        (true, true) => 24.0,
+        (true, false) => 20.0,
+        (false, true) => 28.0,
+        (false, false) => 22.0,
+    }
+}
 
 #[inline(always)]
 pub fn group_gap(is_vertical: bool) -> f32 {

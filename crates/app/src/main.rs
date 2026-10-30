@@ -11,6 +11,7 @@
 use crate::ipc::IpcSubscriber;
 use assets::Assets;
 use gpui_platform::application;
+use reqwest_client::ReqwestClient;
 use tracing_subscriber::EnvFilter;
 
 mod args;
@@ -25,6 +26,7 @@ pub mod launcher;
 pub mod notification;
 pub mod osd;
 mod panel;
+pub mod settings;
 pub mod state;
 
 #[tokio::main]
@@ -34,7 +36,15 @@ async fn main() {
 
     // Initialize tracing with RUST_LOG env var support
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
+        .with_env_filter(
+            // Closing a surface races the compositor: input and frame events
+            // for it keep arriving until the destroy is processed, and gpui
+            // logs "window not found" for every one of them. Teardown noise
+            // about a window that is on its way out, and the only thing this
+            // target has to say.
+            EnvFilter::from_default_env()
+                .add_directive("gpui::window=off".parse().expect("valid directive")),
+        )
         .init();
 
     // Parse command-line arguments
@@ -57,7 +67,11 @@ async fn main() {
         .expect("Failed to initialize services");
 
     // Create and run the GPUI application
-    let app = application().with_assets(Assets {});
+    let app = application()
+        .with_assets(Assets {})
+        .with_http_client(std::sync::Arc::new(
+            ReqwestClient::user_agent("gpuishell").expect("valid user agent"), // to fetch assets for mpris bar module
+        ));
     app.run(move |cx| {
         config::Config::init(cx);
         // Registers the TextField / Menu keybindings the component set needs.

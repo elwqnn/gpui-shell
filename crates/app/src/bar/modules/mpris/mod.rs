@@ -4,17 +4,60 @@ mod config;
 pub use config::MprisConfig;
 
 use gpui::{AnyElement, App, ClickEvent, Context, Pixels, Point, Size, Window, prelude::*, px};
-use services::{MprisData, PlaybackStatus};
+use services::{MprisData, MprisPlayerData, PlaybackStatus};
 use ui::{ActiveTheme, Color, Icon, IconName, LabelCommon};
 
 use super::{BarClick, BarWidget, style};
-use crate::config::{ActiveConfig, Config};
-use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
+use crate::config::{ActiveConfig, Config, State};
+use crate::panel::{PanelConfig, panel_anchor, toggle_panel};
 use crate::state::AppState;
 use crate::state::watch;
 
 mod panel;
 pub use panel::MprisPanel;
+use panel::{MPRIS_PANEL_HEIGHT, MPRIS_PANEL_WIDTH};
+
+/// Bus name prefix every MPRIS player shares.
+const SERVICE_PREFIX: &str = "org.mpris.MediaPlayer2.";
+
+/// The app part of a bus name, without the prefix and the per-launch
+/// instance suffix: `org.mpris.MediaPlayer2.firefox.instance_1_88` is
+/// `firefox`. Stable across restarts, so a saved choice stores this.
+pub fn player_key(service: &str) -> &str {
+    let name = service.strip_prefix(SERVICE_PREFIX).unwrap_or(service);
+    name.split_once('.').map_or(name, |(app, _instance)| app)
+}
+
+/// The player the bar chip reports on: the one picked in the panel, else
+/// whatever is playing.
+pub fn followed_player<'a>(data: &'a MprisData, cx: &App) -> Option<&'a MprisPlayerData> {
+    let picked = State::mpris_player(cx)
+        .and_then(|key| data.players.iter().find(|p| player_key(&p.service) == key));
+
+    picked.or_else(|| {
+        data.players
+            .iter()
+            .find(|p| p.state == PlaybackStatus::Playing)
+            .or_else(|| data.players.first())
+    })
+}
+
+/// Drop a saved choice once its player leaves the bus, so the shell goes back
+/// to following playback until the user picks again. Only while something is
+/// playing at all: an empty list is also what startup looks like.
+pub fn forget_missing_player(data: &MprisData, cx: &mut App) {
+    let Some(picked) = State::mpris_player(cx) else {
+        return;
+    };
+    let gone = !data.players.is_empty()
+        && !data
+            .players
+            .iter()
+            .any(|player| player_key(&player.service) == picked);
+    if gone {
+        State::set_mpris_player(None, cx);
+    }
+}
 
 /// Bar widget for media status and controls.
 pub struct Mpris {
@@ -29,24 +72,26 @@ impl Mpris {
 
         watch(cx, subscriber.subscribe(), |this, data, cx| {
             this.data = data;
+            forget_missing_player(&this.data, cx);
             cx.notify();
         });
+
+        // The panel picks the player from another window, through `state.toml`.
+        cx.observe_global::<State>(|_, cx| cx.notify()).detach();
 
         Self { subscriber, data }
     }
 
     fn toggle_panel(&self, at: Point<Pixels>, window: &Window, cx: &mut App) {
         let subscriber = self.subscriber.clone();
-        let config = Config::global(cx);
-        let panel_size = Size::new(px(380.0), px(420.0));
-        let (anchor, margin) =
-            panel_placement_from_event(config.bar.position, at, window, cx, panel_size);
+        let bar_position = Config::global(cx).bar.position;
+        let (anchor_rect, anchor, gravity) = panel_anchor(bar_position, at, window.viewport_size());
         let config = PanelConfig {
-            width: 380.0,
-            height: 420.0,
+            parent: window.window_handle(),
+            anchor_rect,
             anchor,
-            margin,
-            namespace: "mpris-panel".to_string(),
+            gravity,
+            size: Size::new(px(MPRIS_PANEL_WIDTH), px(MPRIS_PANEL_HEIGHT)),
         };
 
         toggle_panel("mpris", config, cx, move |cx| {
@@ -54,16 +99,8 @@ impl Mpris {
         });
     }
 
-    fn primary_player(&self) -> Option<&services::MprisPlayerData> {
-        self.data
-            .players
-            .iter()
-            .find(|p| p.state == PlaybackStatus::Playing)
-            .or_else(|| self.data.players.first())
-    }
-
-    fn icon(&self) -> IconName {
-        match self.primary_player().map(|p| p.state) {
+    fn icon(&self, cx: &App) -> IconName {
+        match followed_player(&self.data, cx).map(|p| p.state) {
             Some(PlaybackStatus::Playing) => IconName::Play,
             Some(PlaybackStatus::Paused) => IconName::Pause,
             Some(PlaybackStatus::Stopped) => IconName::Stop,
@@ -71,8 +108,8 @@ impl Mpris {
         }
     }
 
-    fn label(&self) -> String {
-        let Some(player) = self.primary_player() else {
+    fn label(&self, cx: &App) -> String {
+        let Some(player) = followed_player(&self.data, cx) else {
             return "No media".to_string();
         };
 
@@ -83,12 +120,7 @@ impl Mpris {
             }
         }
 
-        player
-            .service
-            .rsplit('.')
-            .next()
-            .unwrap_or("Player")
-            .to_string()
+        player_key(&player.service).to_string()
     }
 
     fn render_widget_content(
@@ -129,17 +161,39 @@ impl BarWidget for Mpris {
 
     fn render_vertical(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        self.render_widget_content(&theme, self.icon(), None, true, cx)
+        let icon = self.icon(cx);
+        self.render_widget_content(&theme, icon, None, true, cx)
     }
 
     fn render_horizontal(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
         let theme = cx.theme().clone();
-        self.render_widget_content(&theme, self.icon(), Some(self.label()), false, cx)
+        let icon = self.icon(cx);
+        let label = self.label(cx);
+        self.render_widget_content(&theme, icon, Some(label), false, cx)
     }
 }
 
 impl Render for Mpris {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.render_bar_widget(window, cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::player_key;
+
+    #[test]
+    fn the_player_key_drops_the_instance_suffix() {
+        assert_eq!(
+            player_key("org.mpris.MediaPlayer2.firefox.instance_1_88"),
+            "firefox"
+        );
+        assert_eq!(
+            player_key("org.mpris.MediaPlayer2.plasma-browser-integration"),
+            "plasma-browser-integration"
+        );
+        assert_eq!(player_key("org.mpris.MediaPlayer2.spotify"), "spotify");
+        assert_eq!(player_key("weird-name"), "weird-name");
     }
 }

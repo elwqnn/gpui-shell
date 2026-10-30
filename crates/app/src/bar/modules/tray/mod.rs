@@ -5,10 +5,10 @@ mod panel;
 
 pub use config::TrayConfig;
 
-use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
+use crate::panel::{PanelConfig, panel_anchor, toggle_panel};
 use gpui::{
     AnyElement, App, ClickEvent, Context, ElementId, Pixels, Point, Render, RenderImage,
-    SharedString, Size, Window, img, prelude::*, px,
+    SharedString, Size, Window, img, popup::PopupGravity, prelude::*, px,
 };
 use image::{Frame, RgbaImage};
 use services::{TrayCommand, TrayData, TrayIcon, TrayItem};
@@ -140,23 +140,23 @@ impl Tray {
             let panel_id = format!("systray-{}", item.name);
             let subscriber = self.subscriber.clone();
             let item_name = item.name.clone();
-            let config = Config::global(cx);
-            // Opened at its ceiling so the compositor never places it off
-            // screen; the panel shrinks to its menu on the first frame.
-            let panel_size = Size::new(px(TRAY_MENU_WIDTH), px(TRAY_MENU_MAX_HEIGHT));
-            let (anchor, margin) =
-                panel_placement_from_event(config.bar.position, at, window, cx, panel_size);
+            let bar_position = Config::global(cx).bar.position;
+            let (anchor_rect, anchor, gravity) =
+                panel_anchor(bar_position, at, window.viewport_size());
 
             let config = PanelConfig {
-                width: TRAY_MENU_WIDTH,
-                height: TRAY_MENU_MAX_HEIGHT,
+                parent: window.window_handle(),
+                anchor_rect,
                 anchor,
-                margin,
-                namespace: "systray-menu".to_string(),
+                gravity,
+                // Opened at its ceiling so the compositor never places it off
+                // screen; the panel shrinks to its menu on the first frame.
+                size: Size::new(px(TRAY_MENU_WIDTH), px(TRAY_MENU_MAX_HEIGHT)),
             };
 
+            let grows_up = gravity == PopupGravity::Top;
             toggle_panel(&panel_id, config, cx, move |cx| {
-                TrayMenuPanel::new(menu, item_name, subscriber, anchor, cx)
+                TrayMenuPanel::new(menu, item_name, subscriber, grows_up, cx)
             });
         } else {
             // No menu — activate the item directly (e.g. show window)

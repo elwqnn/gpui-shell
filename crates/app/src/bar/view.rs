@@ -46,6 +46,7 @@ impl Render for Bar {
 
         BarSurface::new(self.position.edge())
             .border(bar.show_border)
+            .opacity(bar.opacity)
             .padding(px(bar.padding))
             .start(start)
             .center(center)

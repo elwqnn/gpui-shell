@@ -35,7 +35,7 @@ pub use panel::{
 
 use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
-use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
+use crate::panel::{PanelConfig, panel_anchor, toggle_panel};
 use crate::state::{AppState, watch};
 
 use crate::icons;
@@ -110,24 +110,21 @@ impl ControlCenter {
 
     /// Toggle the control center panel.
     fn toggle_panel(&self, at: Point<Pixels>, window: &Window, cx: &mut gpui::App) {
-        let config = Config::global(cx);
-        let panel_size = Size::new(
-            px(CONTROL_CENTER_PANEL_WIDTH),
-            px(CONTROL_CENTER_PANEL_HEIGHT_COLLAPSED),
-        );
-        let (anchor, margin) =
-            panel_placement_from_event(config.bar.position, at, window, cx, panel_size);
+        let bar_position = Config::global(cx).bar.position;
+        let (anchor_rect, anchor, gravity) = panel_anchor(bar_position, at, window.viewport_size());
         let config = PanelConfig {
-            width: CONTROL_CENTER_PANEL_WIDTH,
-            height: CONTROL_CENTER_PANEL_HEIGHT_COLLAPSED,
+            parent: window.window_handle(),
+            anchor_rect,
             anchor,
-            margin,
-            namespace: "control-center".to_string(),
+            gravity,
+            // It opens collapsed and resizes to whatever section is expanded.
+            size: Size::new(
+                px(CONTROL_CENTER_PANEL_WIDTH),
+                px(CONTROL_CENTER_PANEL_HEIGHT_COLLAPSED),
+            ),
         };
 
-        toggle_panel("control-center", config, cx, move |cx| {
-            ControlCenterPanel::new(cx)
-        });
+        toggle_panel("control-center", config, cx, ControlCenterPanel::new);
     }
 
     /// Get privacy indicator icons (only when active).

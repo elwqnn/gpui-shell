@@ -1,112 +1,25 @@
-# AGENTS.md
+# Code
 
-AI agent guidance for working with GPUi Shell.
+No comments except if asked explicitely.
 
-## What is GPUi Shell?
+Read [`.agents/CONTEXT.md`](./.agents/CONTEXT.md) before you start a task. It is the
+map of the codebase and links each area guide. If it does not exist, run the
+`context` skill first.
 
-A Wayland desktop shell/status bar built with GPUI (Zed's UI framework) in Rust.
-Provides a system bar, command launcher, and control center for Hyprland and Niri
-compositors.
+Put each file that you write for agents in `.agents/`: context, specs, docs, notes.
+Do not put it in the project root or in `.claude/`.
 
-## Quick Start
+# Figma
 
-```bash
-nix develop        # Enter dev shell (or use direnv)
-cargo run          # Run the app
-cargo clippy       # Lint
-nix build          # Release build
-```
+The `Figma` section of `.agents/CONTEXT.md` holds the known Figma facts: file URLs, pages, frames, libraries, component keys, product font, and the map from Figma variables to code tokens.
+Read it before a Figma call. Do not rediscover what it gives.
+A Figma URL without `node-id` is not a valid brief. Ask for the URL of the frame or the component.
 
-Binary: `gpuishell --input "text"` opens launcher with pre-filled text.
+# Language
 
-## Codebase Structure
+Use ASD-STE100 Simplified Technical English for all output: code comments, chat, documentation.
+- One instruction per sentence. Max 20~25 words.
+- Active voice. Present tense. Imperative for instructions.
+- One meaning per word. No slang, no idioms.
 
-```
-crates/
-├── app/         Main binary, UI components (bar, launcher, panels)
-├── services/    System integration (D-Bus, compositor, audio, network, etc.)
-├── ui/          Shared components and theme system
-│   ├── components/  Primitives (Button, List, ...) - re-exported by `use ui::*`
-│   └── patterns/    Composite shell surfaces (LauncherFrame) - always
-│                    spelled `ui::patterns::X`, never in the root glob
-└── assets/      Embedded SVG icons
-```
-
-## Key Patterns
-
-### Services (Reactive State)
-
-Services in `crates/services/src/` use `futures_signals::signal::Mutable<T>`:
-
-```rust
-// Subscribe for reactive updates
-let audio = AppState::audio(cx).subscribe();
-
-// Get snapshot
-let network = AppState::network(cx).get();
-
-// Send commands
-AppState::compositor(cx).dispatch(CompositorCommand::FocusWorkspace(id));
-```
-
-Services are global singletons accessed via `AppState` (`crates/app/src/state.rs`).
-
-Each one implements `ManagedService` (`crates/services/src/lifecycle.rs`): a
-`Lifecycle` owns its status and a run generation, `start()` (re)runs the
-listener with a fresh `RunToken`, and listeners must check `token.alive()` in
-their loop so a stop or restart retires them. Startup mode per service lives in
-`config.toml` under `[services]` (`eager`, `lazy` or `off`); lazy services start
-on first `AppState::x(cx)` access. The `;s` launcher view shows status, retained
-state size and the restart/stop/mode actions.
-
-### Config vs state
-
-`config.toml` and `theme.toml` are hand-written, so the app never writes
-`config.toml`: what the shell persists itself (dock pins, service modes set
-from `;s`) goes to `state.toml` and overrides its `config.toml` counterpart
-(`crates/app/src/config/state.rs`). A file that stops parsing therefore costs
-the session its settings but never the file - hot reload keeps the last good
-value, a sticky notification names the file that failed (cleared when it parses
-again), and `gpuishell --validate` prints where the parse gave up.
-
-### UI Components
-
-- **Bar** (`crates/app/src/bar/`) — Wayland layer shell status bar with pluggable
-  modules
-- **Launcher** (`crates/app/src/launcher/`) — Prefix-based command launcher
-  (views implement `LauncherView` trait)
-- **Control Center** (`crates/app/src/bar/modules/control_center/`) — Popup
-  panels for system controls
-- **Panel System** (`crates/app/src/panel.rs`) — Only one panel open at a time
-- **OSD** (`crates/app/src/osd/`) — Volume/brightness on-screen indicators
-
-A top-level module in `app` is one *surface* - a window the shell maps. A bar
-widget is `bar/modules/<name>/` (`mod.rs` + `config.rs`, plus `panel.rs` for
-the panel it opens); the panel lives with its widget unless it is a surface in
-its own right, which is why notification popups stay in `notification/`.
-
-Their chrome lives in `ui::patterns` (`LauncherFrame`, `BarSurface`/`BarChip`,
-`OsdIndicator`, `PanelSurface`); state, keybindings and config stay in `app`.
-Every pattern has a story under "Shell Patterns" in `cargo run -p story`.
-
-### Compositor Support
-
-`crates/services/src/compositor/` auto-detects Hyprland or Niri at runtime.
-Commands use `CompositorCommand` enum with backend-specific implementations.
-
-## Important Conventions
-
-- **Async timers**: Use `cx.background_executor().timer(duration).await` (NOT
-  `tokio::time::sleep`)
-- **Theme colors**: Access via `cx.theme().colors()` and `cx.theme().status()`
-  - Use `rems()` for text, `px()` for spacing
-- **Icons**: SVGs in `crates/assets/icons/`, loaded via GPUI asset system
-- **Logging**: `tracing` macros, enable with `RUST_LOG=debug`
-- **Styling**: Pure GPUI builder patterns (no CSS)
-
-## Tech Stack
-
-- **gpui** — UI framework (from zed-industries/zed, wayland feature)
-- **zbus** — D-Bus communication
-- **futures-signals** — Reactive state primitives
-- **tokio** — Async runtime
+If context about this codebase does not fit in the code, write it in `.agents/CONTEXT.md`.

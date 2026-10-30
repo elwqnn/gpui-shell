@@ -44,8 +44,8 @@ impl ThemeScheme {
 /// repository has been cloned.
 pub fn builtin_schemes() -> Vec<ThemeScheme> {
     vec![ThemeScheme::new(
-        "Default Dark",
-        "Built-in — the canonical Base16 dark scheme",
+        "Clay Dark",
+        "Built-in — muted earth tones on black",
         Base16Palette::default(),
     )]
 }

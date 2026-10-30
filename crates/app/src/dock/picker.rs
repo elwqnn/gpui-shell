@@ -1,6 +1,6 @@
 //! Picker panel for pinning apps that aren't currently running.
 
-use gpui::{Context, FocusHandle, Focusable, MouseButton, Render, Window, div, prelude::*, px};
+use gpui::{Context, MouseButton, Render, Window, div, prelude::*, px};
 use ui::{ActiveTheme, InputBuffer, Radius, Spacing, render_input_line};
 
 use super::item::desktop_file_id;
@@ -10,6 +10,7 @@ use crate::keybinds::{
     Backspace, Cancel, CursorLeft, CursorRight, DeleteWordBack, SelectAll, SelectLeft, SelectRight,
     SelectWordLeft, SelectWordRight, WordLeft, WordRight,
 };
+use crate::panel::PanelFocus;
 use crate::state::AppState;
 
 pub(super) const DOCK_APP_PICKER_HEIGHT: f32 = 280.0;
@@ -21,16 +22,14 @@ const MAX_RESULTS: usize =
 
 pub(super) struct DockAppPicker {
     input: InputBuffer,
-    focus_handle: FocusHandle,
-    needs_initial_focus: bool,
+    focus: PanelFocus,
 }
 
 impl DockAppPicker {
     pub(super) fn new(cx: &mut Context<Self>) -> Self {
         Self {
             input: InputBuffer::default(),
-            focus_handle: cx.focus_handle(),
-            needs_initial_focus: true,
+            focus: PanelFocus::new(cx),
         }
     }
 
@@ -46,19 +45,9 @@ impl DockAppPicker {
     }
 }
 
-impl Focusable for DockAppPicker {
-    fn focus_handle(&self, _cx: &gpui::App) -> FocusHandle {
-        self.focus_handle.clone()
-    }
-}
-
 impl Render for DockAppPicker {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        if self.needs_initial_focus {
-            self.focus_handle.focus(window, cx);
-            self.needs_initial_focus = false;
-        }
-
+        let focus = self.focus.arm(window, cx).clone();
         let theme = cx.theme().clone();
         let apps = self.matching_unpinned_apps(cx);
 
@@ -78,8 +67,7 @@ impl Render for DockAppPicker {
                     MouseButton::Left,
                     cx.listener(move |_this, _event, window, cx| {
                         toggle_pin(&id, cx);
-                        window.remove_window();
-                        crate::panel::forget_panel("dock-app-picker");
+                        crate::panel::dismiss(window);
                     }),
                 )
                 .child(label)
@@ -87,11 +75,10 @@ impl Render for DockAppPicker {
 
         div()
             .id("dock-app-picker")
-            .track_focus(&self.focus_handle)
+            .track_focus(&focus)
             .key_context("Launcher")
             .on_action(cx.listener(|_this, _: &Cancel, window, _cx| {
-                window.remove_window();
-                crate::panel::forget_panel("dock-app-picker");
+                crate::panel::dismiss(window);
             }))
             .on_action(cx.listener(|this, _: &Backspace, _window, cx| {
                 this.input.backspace();

@@ -27,6 +27,8 @@ pub struct State {
     pinned: Option<Vec<String>>,
     /// Overrides `[services]`, per service.
     services: BTreeMap<String, ServiceMode>,
+    /// The MPRIS player the bar follows, keyed by app name.
+    mpris_player: Option<String>,
 }
 
 impl Global for State {}
@@ -58,8 +60,9 @@ impl State {
     }
 
     /// Startup mode for a service: what the UI last saved, else what
-    /// `config.toml` declares, else eager.
-    pub fn service_mode(name: &str, cx: &App) -> ServiceMode {
+    /// `config.toml` declares. `None` when neither names it, so the caller can
+    /// fall back to the mode the service itself declares.
+    pub fn service_mode(name: &str, cx: &App) -> Option<ServiceMode> {
         resolve_mode(&cx.global::<Self>().services, &cx.config().services, name)
     }
 
@@ -68,6 +71,17 @@ impl State {
         cx.global_mut::<Self>()
             .services
             .insert(name.to_lowercase(), mode);
+        Self::save(cx);
+    }
+
+    /// The MPRIS player the bar follows, `None` while it follows playback.
+    pub fn mpris_player(cx: &App) -> Option<&str> {
+        cx.global::<Self>().mpris_player.as_deref()
+    }
+
+    /// Pick the player the bar follows and persist it, `None` for playback.
+    pub fn set_mpris_player(player: Option<String>, cx: &mut App) {
+        cx.global_mut::<Self>().mpris_player = player;
         Self::save(cx);
     }
 
@@ -84,13 +98,9 @@ fn resolve_mode(
     state: &BTreeMap<String, ServiceMode>,
     config: &BTreeMap<String, ServiceMode>,
     name: &str,
-) -> ServiceMode {
+) -> Option<ServiceMode> {
     let name = name.to_lowercase();
-    state
-        .get(&name)
-        .or_else(|| config.get(&name))
-        .copied()
-        .unwrap_or_default()
+    state.get(&name).or_else(|| config.get(&name)).copied()
 }
 
 pub(super) fn state_path() -> anyhow::Result<PathBuf> {
@@ -118,14 +128,17 @@ mod tests {
         let config = modes(&[("tray", ServiceMode::Off), ("audio", ServiceMode::Lazy)]);
 
         // The UI had the last word on tray.
-        assert_eq!(resolve_mode(&state, &config, "Tray"), ServiceMode::Eager);
-        // Nothing in state, so the hand-written value stands.
-        assert_eq!(resolve_mode(&state, &config, "Audio"), ServiceMode::Lazy);
-        // Neither file mentions it.
         assert_eq!(
-            resolve_mode(&state, &config, "Bluetooth"),
-            ServiceMode::Eager
+            resolve_mode(&state, &config, "Tray"),
+            Some(ServiceMode::Eager)
         );
+        // Nothing in state, so the hand-written value stands.
+        assert_eq!(
+            resolve_mode(&state, &config, "Audio"),
+            Some(ServiceMode::Lazy)
+        );
+        // Neither file mentions it: the service keeps its own default.
+        assert_eq!(resolve_mode(&state, &config, "Bluetooth"), None);
     }
 
     #[test]
@@ -133,6 +146,7 @@ mod tests {
         let state = State {
             pinned: Some(vec!["firefox.desktop".to_string()]),
             services: modes(&[("tray", ServiceMode::Off)]),
+            mpris_player: Some("spotify".to_string()),
         };
 
         let encoded = toml::to_string_pretty(&state).expect("state serializes");
@@ -143,6 +157,7 @@ mod tests {
             Some(&["firefox.desktop".to_string()][..])
         );
         assert_eq!(decoded.services.get("tray"), Some(&ServiceMode::Off));
+        assert_eq!(decoded.mpris_player.as_deref(), Some("spotify"));
     }
 
     /// An empty pinned list is a real answer - "the user unpinned everything" -

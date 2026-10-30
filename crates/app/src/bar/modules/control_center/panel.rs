@@ -27,6 +27,7 @@ use crate::keybinds::{
     Backspace, Cancel, Confirm, CursorLeft, CursorRight, DeleteWordBack, SelectAll, SelectLeft,
     SelectRight, SelectWordLeft, SelectWordRight, WordLeft, WordRight,
 };
+use crate::panel::panel_background;
 use crate::state::{AppState, watch};
 
 use super::quick_toggles::{self, ExpandedSection};
@@ -67,6 +68,13 @@ impl ControlCenterPanel {
             focus_handle,
             wifi_password: WifiPasswordState::default(),
         }
+    }
+
+    /// Settings is a window of its own, not a panel: this one has said what
+    /// it had to say, so it goes away as the window comes up.
+    fn open_settings(cx: &mut App) {
+        crate::panel::close_panel(cx);
+        crate::settings::open(cx);
     }
 
     /// Subscribe to service updates to keep UI in sync
@@ -141,6 +149,8 @@ impl Render for ControlCenterPanel {
                 });
             }
         });
+
+        let on_open_settings: Rc<dyn Fn(&mut App)> = Rc::new(Self::open_settings);
 
         let on_cycle_power_profile: Rc<dyn Fn(&mut App)> = Rc::new({
             let services = AppState::upower(cx).clone();
@@ -300,6 +310,12 @@ impl Render for ControlCenterPanel {
                     (on_cycle_power_profile)(cx);
                 }
             };
+            let on_open_settings = {
+                let on_open_settings = on_open_settings.clone();
+                move |cx: &mut App| {
+                    (on_open_settings)(cx);
+                }
+            };
             let on_wifi_connect = {
                 let on_wifi_connect = on_wifi_connect.clone();
                 move |ssid: String, password: Option<String>, cx: &mut App| {
@@ -324,12 +340,10 @@ impl Render for ControlCenterPanel {
                 .track_focus(&self.focus_handle)
                 .key_context("ControlCenter")
                 .w_full()
-                .p(Spacing::Large.pixels())
-                .panel_surface(cx)
                 .text_color(theme.colors.text)
                 .flex()
                 .flex_col()
-                .gap(Spacing::Large.pixels())
+                .bar_panel(panel_background(cx), cx)
                 // Keyboard event handling for password input
                 .on_action({
                     let entity = entity.clone();
@@ -618,6 +632,29 @@ impl Render for ControlCenterPanel {
                                             .size(IconSize::XSmall)
                                             .color(Color::Default),
                                         ),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .id("settings-button")
+                                .w(px(36.))
+                                .h(px(36.))
+                                .rounded(px(18.))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .border_1()
+                                .border_color(border_subtle)
+                                .bg(interactive_default)
+                                .cursor_pointer()
+                                .hover(move |s| s.bg(interactive_hover))
+                                .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                                    on_open_settings(cx);
+                                })
+                                .child(
+                                    Icon::new(IconName::Settings)
+                                        .size(IconSize::Small)
+                                        .color(Color::Default),
                                 ),
                         )
                         .child(

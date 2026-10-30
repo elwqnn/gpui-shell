@@ -3,10 +3,10 @@
 //! Lives beside its widget, like every other bar module's panel.
 
 use gpui::{
-    AvailableSpace, Context, ElementId, Render, SharedString, Size, Window, div,
-    layer_shell::Anchor, prelude::*, px,
+    AvailableSpace, Context, ElementId, Render, SharedString, Size, Window, div, prelude::*, px,
 };
 use services::{MenuLayout, MenuLayoutProps, TrayCommand};
+use std::sync::Arc;
 use ui::patterns::PanelSurface;
 use ui::{
     ActiveTheme, Clickable, Color, Disableable, Divider, Icon, IconName, IconSize, Label,
@@ -24,23 +24,22 @@ pub(super) const TRAY_MENU_MAX_HEIGHT: f32 = 400.0;
 
 /// Panel content for displaying a tray item's menu.
 pub(super) struct TrayMenuPanel {
-    menu: MenuLayout,
+    menu: Arc<MenuLayout>,
     item_name: String,
     subscriber: services::TraySubscriber,
     /// Track which submenus are expanded (by menu ID)
     expanded_submenus: Vec<i32>,
     focus: PanelFocus,
-    /// Which edge of its window the menu grows from - the same edge the
-    /// compositor anchored the window to.
-    anchored_bottom: bool,
+    /// Whether the menu grows upwards, away from a bar along the bottom.
+    grows_up: bool,
 }
 
 impl TrayMenuPanel {
     pub(super) fn new(
-        menu: MenuLayout,
+        menu: Arc<MenuLayout>,
         item_name: String,
         subscriber: services::TraySubscriber,
-        anchor: Anchor,
+        grows_up: bool,
         cx: &mut Context<Self>,
     ) -> Self {
         // Subscribe to tray data updates so the menu refreshes live
@@ -61,7 +60,7 @@ impl TrayMenuPanel {
             subscriber,
             expanded_submenus: Vec::new(),
             focus: PanelFocus::new(cx),
-            anchored_bottom: anchor.contains(Anchor::BOTTOM),
+            grows_up,
         }
     }
 
@@ -293,15 +292,14 @@ impl Render for TrayMenuPanel {
             window.resize(desired);
         }
 
-        // The window is still at its opening height for this frame, and the
-        // resize will pull the edge it is *not* anchored to. Painting the card
-        // against the anchored edge is what keeps it still: without this it
-        // shows up at the top of a 400px window, then drops onto its anchor.
+        // The resize only lands on the next frame, and it pulls the edge the
+        // popup is *not* anchored to. Painting against the anchored edge is
+        // what keeps the menu still while that happens.
         div()
             .size_full()
             .flex()
             .flex_col()
-            .when(self.anchored_bottom, |el| el.justify_end())
+            .when(self.grows_up, |el| el.justify_end())
             .child(build_card(cx))
     }
 }

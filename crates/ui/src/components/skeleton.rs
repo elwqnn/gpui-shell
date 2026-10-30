@@ -1,7 +1,6 @@
 //! Skeleton - an animated placeholder that signals content is loading.
 
-use std::time::Duration;
-
+use crate::styles::Motion;
 use crate::theme::{ActiveTheme, Radius, Spacing};
 use gpui::{
     Animation, AnimationExt, App, IntoElement, Pixels, RenderOnce, Styled, Window, div, prelude::*,
@@ -86,7 +85,7 @@ impl RenderOnce for Skeleton {
         // Pulse animation: oscillate opacity between 0.4 and 1.0.
         shaped.with_animation(
             "skeleton-pulse",
-            Animation::new(Duration::from_millis(1500)).repeat(),
+            Animation::new(Motion::Pulse.duration()).repeat(),
             |el, delta| {
                 // Sine wave: 0->1->0 over one cycle, mapped to 0.4-1.0
                 let t = (delta * std::f32::consts::PI * 2.0).sin() * 0.5 + 0.5;

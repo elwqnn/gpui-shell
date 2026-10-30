@@ -6,7 +6,7 @@ use ui::{ActiveTheme, Color, Icon, IconSize, Radius, Spacing, TextSize};
 
 use crate::config::ActiveConfig;
 use crate::keybinds::Cancel;
-use crate::panel::PanelFocus;
+use crate::panel::{PanelFocus, panel_background};
 use crate::state::watch;
 
 use super::card::notification_card_body;
@@ -42,6 +42,7 @@ impl Render for NotificationCenter {
         let focus = self.focus.arm(window, cx).clone();
         let theme = cx.theme();
         let config = &cx.config().notification;
+        let center_height = config.center_height;
         let notifications = self.data.notifications.clone();
         let has_notifications = !notifications.is_empty();
         let dnd_enabled = self.data.dnd;
@@ -99,66 +100,54 @@ impl Render for NotificationCenter {
             .track_focus(&focus)
             .key_context("Panel")
             .on_action(|_: &Cancel, window, _| crate::panel::dismiss(window))
-            .size_full()
-            .panel_surface(cx)
-            .p(Spacing::Medium.pixels())
+            .w_full()
+            .h(px(center_height))
             .flex()
             .flex_col()
-            .gap(Spacing::Medium.pixels())
+            .bar_panel(panel_background(cx), cx)
+            // No title, like every bar panel: the row above the list is what
+            // acts on it, nothing else.
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .justify_between()
+                    .justify_end()
+                    .gap(Spacing::Medium.pixels())
                     .child(
                         div()
-                            .text_size(TextSize::Small.rems())
-                            .text_color(theme.colors.text)
-                            .child("Notifications"),
+                            .cursor_pointer()
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_, _, _, _cx| {
+                                    dispatch_notification_command(
+                                        dnd_subscriber.clone(),
+                                        NotificationCommand::SetDnd(!dnd_enabled),
+                                    );
+                                }),
+                            )
+                            .child(Icon::new(config.icons.dnd()).size(IconSize::XSmall).color(
+                                Color::Custom(if dnd_enabled {
+                                    theme.colors.accent
+                                } else {
+                                    theme.colors.text
+                                }),
+                            )),
                     )
                     .child(
                         div()
-                            .flex()
-                            .items_center()
-                            .gap(Spacing::Medium.pixels())
-                            .child(
-                                div()
-                                    .cursor_pointer()
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |_, _, _, _cx| {
-                                            dispatch_notification_command(
-                                                dnd_subscriber.clone(),
-                                                NotificationCommand::SetDnd(!dnd_enabled),
-                                            );
-                                        }),
-                                    )
-                                    .child(
-                                        Icon::new(config.icons.dnd()).size(IconSize::XSmall).color(
-                                            Color::Custom(if dnd_enabled {
-                                                theme.colors.accent
-                                            } else {
-                                                theme.colors.text
-                                            }),
-                                        ),
-                                    ),
+                            .cursor_pointer()
+                            .text_size(TextSize::Small.rems())
+                            .text_color(theme.colors.text)
+                            .on_mouse_down(
+                                MouseButton::Left,
+                                cx.listener(move |_, _, _, _cx| {
+                                    dispatch_notification_command(
+                                        clear_subscriber.clone(),
+                                        NotificationCommand::DismissAll,
+                                    );
+                                }),
                             )
-                            .child(
-                                div()
-                                    .cursor_pointer()
-                                    .text_size(TextSize::Small.rems())
-                                    .text_color(theme.colors.text)
-                                    .on_mouse_down(
-                                        MouseButton::Left,
-                                        cx.listener(move |_, _, _, _cx| {
-                                            dispatch_notification_command(
-                                                clear_subscriber.clone(),
-                                                NotificationCommand::DismissAll,
-                                            );
-                                        }),
-                                    )
-                                    .child("Clear"),
-                            ),
+                            .child("Clear"),
                     ),
             )
             .child(

@@ -15,4 +15,4 @@ pub mod surface;
 pub use bar::{BarChip, BarClick, BarEdge, BarSurface};
 pub use launcher::{LauncherFrame, footer_hints};
 pub use osd::OsdIndicator;
-pub use surface::PanelSurface;
+pub use surface::{PANEL_GAP, PANEL_PADDING, PanelSurface};

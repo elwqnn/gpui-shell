@@ -11,6 +11,7 @@ The `[bar]` section controls the status bar position, size, and widget layout.
 | ---------- | ---------- | -------------------------------------------------- | -------------------------------------------------- |
 | `size`     | `float`    | `32.0`                                             | Bar thickness in pixels.                           |
 | `position` | `string`   | `"left"`                                           | Screen edge: `left`, `right`, `top`, or `bottom`.  |
+| `opacity`  | `float`    | `1.0`                                              | Bar background opacity, `0.0` fully transparent.   |
 | `start`    | `string[]` | `["LauncherBtn", "Workspaces", "SysInfo"]`         | Widgets in the start section.                      |
 | `center`   | `string[]` | `["ActiveWindow"]`                                 | Widgets in the center section.                     |
 | `end`      | `string[]` | `["Clock", "Mpris", "Notifications", "Systray", "KeyboardLayout", "ControlCenter"]` | Widgets in the end section.                     |
@@ -52,8 +53,8 @@ Each module can be configured in the `[bar.modules.<module_name>]` section.
 
 | Option                | Type     | Default                | Description                                   |
 | --------------------- | -------- | ---------------------- | --------------------------------------------- |
-| `format_horizontal`   | `string` | `"%d/%m/%Y %H:%M:%S"` | Time format for horizontal bars (strftime).  |
-| `format_vertical`     | `string` | `"%H\n%M\n%S"`        | Time format for vertical bars (strftime).    |
+| `format_horizontal`   | `string` | `"%H:%M - %a, %d/%m"` | Time format for horizontal bars (strftime).  |
+| `format_vertical`     | `string` | `"%H:%M\n%d/%m"`      | Time format for vertical bars (strftime).    |
 
 ### Battery Module
 
@@ -89,6 +90,18 @@ Each module can be configured in the `[bar.modules.<module_name>]` section.
 | ----------- | ------- | ------- | --------------------------- |
 | `show_cover`| `bool`  | `true`  | Display album cover art.    |
 | `max_width` | `float` | `220.0` | Maximum widget width in pixels. |
+| `show_spectrum` | `bool` | `true` | Draw the audio spectrum behind the main player. |
+
+Nothing is hidden: a track playing through both a browser and
+`plasma-browser-integration` is two players, and the panel lists both. Clicking
+another player's cover promotes it to the main card and points the bar chip at
+it; the choice is saved to `state.toml` under its app name (`firefox`), so it
+survives the instance suffix changing between launches. It reverts to following
+whatever plays as soon as that player leaves the bus.
+
+The spectrum comes from the `Spectrum` service (cava's analyser, over
+PipeWire), which only runs while the panel is open. Set `show_spectrum = false`,
+or `spectrum = "off"` under `[services]`, to never start it.
 
 ### Active Window Module
 

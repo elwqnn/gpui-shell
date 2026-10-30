@@ -15,6 +15,7 @@ hyprland.workspace = true
 niri-ipc.workspace = true
 tokio.workspace = true
 inotify.workspace = true
+url.workspace = true
 
 pipewire = "0.10"
 serde = { version = "1.0", features = ["derive"] }

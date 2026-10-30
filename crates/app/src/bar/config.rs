@@ -51,6 +51,8 @@ pub struct BarConfig {
     pub position: BarPosition,
     /// Whether the bar itself draws an edge border.
     pub show_border: bool,
+    /// Opacity of the bar's own fill: `1.0` opaque, `0.0` fully see-through.
+    pub opacity: f32,
     /// Whether widgets render a resting background fill.
     pub widget_background: bool,
     /// Whether widgets render a subtle border.
@@ -87,6 +89,7 @@ impl Default for BarConfig {
             padding: 14.0,
             position: BarPosition::Left,
             show_border: true,
+            opacity: 1.0,
             widget_background: true,
             widget_border: true,
             start: vec!["LauncherBtn".into(), "Workspaces".into(), "SysInfo".into()],

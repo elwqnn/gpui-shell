@@ -16,6 +16,7 @@ pub mod network;
 // zbus's `#[interface(proxy(..))]` expands `notify` into a generated proxy method clippy flags
 pub mod notification;
 pub mod privacy;
+pub mod spectrum;
 pub mod status;
 pub mod sysinfo;
 pub mod themes;
@@ -47,6 +48,7 @@ pub use notification::{
     LocalSlot, Notification, NotificationCommand, NotificationData, NotificationSubscriber,
 };
 pub use privacy::{ApplicationNode, Media, PrivacyData, PrivacySubscriber};
+pub use spectrum::{SpectrumData, SpectrumSubscriber};
 pub use status::ServiceStatus;
 pub use sysinfo::{DiskInfo, NetworkInfo, SysInfoData, SysInfoSubscriber};
 pub use themes::{

@@ -3,9 +3,9 @@
 mod config;
 pub use config::WorkspacesConfig;
 
-use gpui::{AnyElement, Context, Window, prelude::*, px};
+use gpui::{AnyElement, Context, Hsla, Window, div, prelude::*, px};
 use services::{CompositorCommand, CompositorState};
-use ui::{ActiveTheme, Radius, h_flex};
+use ui::{ActiveTheme, h_flex};
 
 use super::{BarWidget, BarWidgetShell, style};
 use crate::config::ActiveConfig;
@@ -75,43 +75,50 @@ impl Workspaces {
         }
     }
 
+    /// The text on a pill. An empty label is not a miss: the pill then draws
+    /// itself as a bare indicator, which is exactly what both `show_icons` and
+    /// `show_numbers` off asks for.
     fn workspace_label(
         ws: &services::Workspace,
         is_vertical: bool,
         show_numbers: bool,
         show_icons: bool,
     ) -> String {
-        if !show_numbers && !show_icons {
-            return String::new();
-        }
-
         let name = ws.name.trim();
         let is_numeric_name = !name.is_empty() && name.chars().all(|ch| ch.is_ascii_digit());
+        let short = || name.chars().take(3).collect::<String>().to_uppercase();
 
-        if show_icons && !show_numbers {
-            if name.is_empty() || is_numeric_name {
-                return String::new();
-            }
-            return name.chars().take(3).collect::<String>().to_uppercase();
+        match (show_icons, show_numbers) {
+            (false, false) => String::new(),
+            // Icons only: a workspace named after its number has nothing to say.
+            (true, false) if name.is_empty() || is_numeric_name => String::new(),
+            (true, false) => short(),
+            (false, true) => ws.id.to_string(),
+            // A vertical pill is too narrow for a name.
+            (true, true) if is_vertical || name.is_empty() => ws.id.to_string(),
+            (true, true) if is_numeric_name => name.to_string(),
+            (true, true) => short(),
         }
+    }
 
-        if show_numbers && !show_icons {
-            return ws.id.to_string();
-        }
-
-        if is_vertical {
-            return ws.id.to_string();
-        }
-
-        if name.is_empty() {
-            return ws.id.to_string();
-        }
-
-        if is_numeric_name {
-            name.to_string()
+    /// What an unlabelled pill draws instead: a dash for the active workspace,
+    /// a dot for one holding windows, a smaller one when it is empty. Always
+    /// along the bar's long axis, so the dash reads as a run of workspace.
+    fn indicator(is_vertical: bool, is_active: bool, has_windows: bool, color: Hsla) -> AnyElement {
+        let (length, thickness) = if is_active {
+            (style::WORKSPACE_DASH, style::WORKSPACE_DOT)
+        } else if has_windows {
+            (style::WORKSPACE_DOT, style::WORKSPACE_DOT)
         } else {
-            name.chars().take(3).collect::<String>().to_uppercase()
-        }
+            (style::WORKSPACE_DOT_EMPTY, style::WORKSPACE_DOT_EMPTY)
+        };
+
+        div()
+            .rounded_full()
+            .bg(color)
+            .w(px(if is_vertical { thickness } else { length }))
+            .h(px(if is_vertical { length } else { thickness }))
+            .into_any_element()
     }
 
     fn render_workspace_pill(
@@ -127,53 +134,57 @@ impl Workspaces {
         let is_active = active_workspace_id == Some(ws.id);
         let has_windows = ws.windows > 0;
         let label = Self::workspace_label(ws, is_vertical, config.show_numbers, config.show_icons);
+        let labelled = !label.is_empty();
 
-        // Not a `ButtonLike`: the pill carries three background states
-        // (active / has windows / empty) and `ButtonStyle` has no per-state
-        // palette to express them.
+        // Three weights, loudest first: the focused workspace, one holding
+        // windows, an empty one. Not a `ButtonLike`: `ButtonStyle` has no
+        // per-state palette to express them.
+        let (fill, ink) = if is_active {
+            (theme.colors.accent, theme.colors.background)
+        } else if has_windows {
+            (theme.colors.elevated_surface_background, theme.colors.text)
+        } else {
+            (
+                gpui::transparent_black(),
+                theme.colors.text_muted.opacity(0.7),
+            )
+        };
+        // An indicator carries the state in its own colour, so its slot stays
+        // empty and only lights up under the pointer.
+        let hover_bg = if is_active && labelled {
+            theme.colors.accent
+        } else {
+            theme.colors.element_hover
+        };
+
         h_flex()
             .id(format!("workspace-{}", ws.id))
             .justify_center()
-            .w(if is_vertical {
-                if is_active {
-                    px(style::WORKSPACE_PILL_WIDTH_ACTIVE)
-                } else {
-                    px(style::WORKSPACE_PILL_WIDTH)
-                }
-            } else if is_active {
-                px(style::WORKSPACE_PILL_WIDTH_HORIZONTAL_ACTIVE)
-            } else {
-                px(style::WORKSPACE_PILL_WIDTH_HORIZONTAL)
-            })
+            .min_w(px(style::workspace_pill_width(is_vertical, is_active)))
             .h(px(style::WORKSPACE_PILL_HEIGHT))
-            .rounded(Radius::Small.pixels())
+            .when(labelled, |this| {
+                this.px(px(style::WORKSPACE_PILL_PADDING_X))
+            })
+            .rounded_full()
             .cursor_pointer()
-            .bg(if is_active {
-                theme.colors.accent
-            } else if has_windows {
-                theme.colors.elevated_surface_background
+            .bg(if labelled {
+                fill
             } else {
                 gpui::transparent_black()
             })
-            .hover(move |s| {
-                if is_active {
-                    s.bg(theme.colors.accent)
-                } else {
-                    s.bg(theme.colors.element_hover)
-                }
-            })
+            .hover(move |s| s.bg(hover_bg))
             .on_click(cx.listener(move |this, _, _, _| {
                 this.focus_workspace(workspace_id);
             }))
-            .when(!label.is_empty(), |this| {
-                let color = if is_active {
-                    theme.colors.background
-                } else if has_windows {
-                    theme.colors.text
-                } else {
-                    theme.colors.text_muted
-                };
-                this.child(style::bar_label(label, is_vertical, color))
+            .child(if labelled {
+                style::bar_label(label, is_vertical, ink).into_any_element()
+            } else {
+                Self::indicator(
+                    is_vertical,
+                    is_active,
+                    has_windows,
+                    if is_active { theme.colors.accent } else { ink },
+                )
             })
             .into_any_element()
     }
@@ -259,5 +270,54 @@ impl BarWidget for Workspaces {
 impl Render for Workspaces {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         self.render_bar_widget(window, cx)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ws(id: i32, name: &str) -> services::Workspace {
+        services::Workspace {
+            id,
+            name: name.to_string(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn label_picks_name_number_or_nothing() {
+        // Both off: the pill falls back to its indicator.
+        assert_eq!(
+            Workspaces::workspace_label(&ws(1, "web"), false, false, false),
+            ""
+        );
+        // Icons only: a name, unless it just repeats the number.
+        assert_eq!(
+            Workspaces::workspace_label(&ws(1, "web"), false, false, true),
+            "WEB"
+        );
+        assert_eq!(
+            Workspaces::workspace_label(&ws(1, "1"), false, false, true),
+            ""
+        );
+        // Numbers only: always the id, name or not.
+        assert_eq!(
+            Workspaces::workspace_label(&ws(3, "web"), false, true, false),
+            "3"
+        );
+        // Both: name horizontally, id vertically (too narrow for a name).
+        assert_eq!(
+            Workspaces::workspace_label(&ws(3, "web"), false, true, true),
+            "WEB"
+        );
+        assert_eq!(
+            Workspaces::workspace_label(&ws(3, "web"), true, true, true),
+            "3"
+        );
+        assert_eq!(
+            Workspaces::workspace_label(&ws(3, ""), false, true, true),
+            "3"
+        );
     }
 }

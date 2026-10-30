@@ -12,7 +12,7 @@ use ui::{ActiveTheme, Color, Icon, IconSource, Label, LabelCommon, TextSize};
 use super::{BarClick, BarWidget, style};
 use crate::config::{ActiveConfig, Config};
 use crate::notification::{NotificationCenter, dispatch_notification_command};
-use crate::panel::{PanelConfig, panel_placement_from_event, toggle_panel};
+use crate::panel::{PanelConfig, panel_anchor, toggle_panel};
 use crate::state::{AppState, watch};
 
 /// Notification widget for the bar.
@@ -41,17 +41,17 @@ impl NotificationWidget {
             px(notification_config.center_width),
             px(notification_config.center_height),
         );
-        let (anchor, margin) =
-            panel_placement_from_event(config.bar.position, at, window, cx, panel_size);
+        let (anchor_rect, anchor, gravity) =
+            panel_anchor(config.bar.position, at, window.viewport_size());
         let subscriber = self.subscriber.clone();
         dispatch_notification_command(subscriber.clone(), NotificationCommand::MarkAllRead);
 
         let panel_config = PanelConfig {
-            width: notification_config.center_width,
-            height: notification_config.center_height,
+            parent: window.window_handle(),
+            anchor_rect,
             anchor,
-            margin,
-            namespace: "notification-center".to_string(),
+            gravity,
+            size: panel_size,
         };
 
         toggle_panel("notification-center", panel_config, cx, move |cx| {

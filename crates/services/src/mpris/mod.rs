@@ -12,6 +12,7 @@ use futures_util::StreamExt;
 use futures_util::future::join_all;
 use futures_util::stream::select_all;
 use tracing::{debug, error, info, trace, warn};
+use url::Url;
 use zbus::{Connection, fdo::DBusProxy, zvariant::OwnedValue};
 
 use crate::lifecycle::{Lifecycle, ManagedService, RunToken};
@@ -85,16 +86,25 @@ impl From<HashMap<String, OwnedValue>> for MprisPlayerMetadata {
     }
 }
 
+/// Album art as something a UI can load: a `file:` URL becomes the plain
+/// path it points at, since only http(s) is worth fetching.
+fn art_source(source: &str) -> Option<String> {
+    let Ok(url) = Url::parse(source) else {
+        return source.starts_with('/').then(|| source.to_string());
+    };
+
+    match url.scheme() {
+        "file" => url.to_file_path().ok()?.into_os_string().into_string().ok(),
+        "http" | "https" => Some(source.to_string()),
+        _ => None,
+    }
+}
+
 fn metadata_art_url(value: &HashMap<String, OwnedValue>) -> Option<String> {
     value
         .get("mpris:artUrl")
         .and_then(|v| v.clone().try_into().ok())
-        .filter(|source: &String| {
-            source.starts_with('/')
-                || source.starts_with("file://")
-                || source.starts_with("http://")
-                || source.starts_with("https://")
-        })
+        .and_then(|source: String| art_source(&source))
 }
 
 fn metadata_duration_us(value: &HashMap<String, OwnedValue>) -> Option<i64> {
@@ -119,6 +129,7 @@ pub struct MprisPlayerData {
     pub volume: Option<f64>,
     pub state: PlaybackStatus,
     pub can_control: bool,
+    pub can_seek: bool,
 }
 
 /// Complete MPRIS service state.
@@ -141,6 +152,8 @@ pub enum PlayerCommand {
     PlayPause,
     Next,
     Volume(f64),
+    /// Jump to an absolute position, in microseconds.
+    SeekTo(i64),
 }
 
 /// Reactive MPRIS subscriber.
@@ -167,6 +180,18 @@ impl MprisSubscriber {
         self.data.get_cloned()
     }
 
+    /// Playback position in microseconds. MPRIS never signals it, so whoever
+    /// displays it polls for it.
+    pub async fn position(&self, service_name: &str) -> anyhow::Result<i64> {
+        let conn = crate::bus::session().await?;
+        let proxy = MprisPlayerProxy::builder(&conn)
+            .destination(service_name)?
+            .build()
+            .await?;
+
+        Ok(proxy.position().await?)
+    }
+
     /// Execute a command for a specific player.
     pub async fn dispatch(&self, command: MprisCommand) -> anyhow::Result<()> {
         let conn = crate::bus::session().await?;
@@ -188,6 +213,12 @@ impl MprisSubscriber {
             PlayerCommand::Volume(v) => {
                 let normalized = (v.clamp(0.0, 100.0)) / 100.0;
                 proxy.set_volume(normalized).await?;
+            }
+            PlayerCommand::SeekTo(position) => {
+                // MPRIS only seeks relatively, and the caller's idea of the
+                // position is up to a poll old, so measure from a fresh read.
+                let current = proxy.position().await?;
+                proxy.seek(position - current).await?;
             }
         }
 
@@ -280,6 +311,7 @@ async fn fetch_mpris_data(conn: &Connection) -> anyhow::Result<MprisData> {
             .map(PlaybackStatus::from)
             .unwrap_or_default();
         let can_control = proxy.can_control().await.unwrap_or(false);
+        let can_seek = proxy.can_seek().await.unwrap_or(false);
 
         Some(MprisPlayerData {
             service: name.clone(),
@@ -289,6 +321,7 @@ async fn fetch_mpris_data(conn: &Connection) -> anyhow::Result<MprisData> {
             volume,
             state,
             can_control,
+            can_seek,
         })
     }))
     .await
@@ -528,4 +561,26 @@ async fn run_listener(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::art_source;
+
+    #[test]
+    fn art_reaches_the_ui_as_a_path_or_a_remote_url() {
+        assert_eq!(
+            art_source("file:///tmp/a%20cover.jpg").as_deref(),
+            Some("/tmp/a cover.jpg")
+        );
+        assert_eq!(
+            art_source("/tmp/cover.jpg").as_deref(),
+            Some("/tmp/cover.jpg")
+        );
+        assert_eq!(
+            art_source("https://i.scdn.co/image/ab6761").as_deref(),
+            Some("https://i.scdn.co/image/ab6761")
+        );
+        assert_eq!(art_source("data:image/png;base64,AAAA"), None);
+    }
 }

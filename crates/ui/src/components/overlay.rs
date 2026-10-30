@@ -75,9 +75,13 @@ pub(crate) fn overlay_shell(
         .absolute()
         .inset_0()
         .size_full()
+        // A dismissing click dismisses, and does nothing else: without these
+        // it also reached the trigger underneath, which reopened the overlay.
+        .occlude()
         .when_some(backdrop, |this, color| this.bg(color))
         .on_mouse_down(MouseButton::Left, move |_event, window, cx| {
             click_dismiss(window, cx);
+            cx.stop_propagation();
         })
         .on_key_down(move |event, window, cx| {
             if event.keystroke.key == "escape" {

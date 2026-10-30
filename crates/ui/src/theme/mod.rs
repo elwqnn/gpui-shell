@@ -133,7 +133,7 @@ impl Theme {
 
 impl Default for Theme {
     fn default() -> Self {
-        Self::from_palette("Default Dark", Base16Palette::default())
+        Self::from_palette("Clay Dark", Base16Palette::default())
     }
 }
 

@@ -10,6 +10,8 @@ pub trait MprisPlayer {
     fn next(&self) -> Result<()>;
     fn play_pause(&self) -> Result<()>;
     fn previous(&self) -> Result<()>;
+    /// Relative seek, in microseconds.
+    fn seek(&self, offset: i64) -> Result<()>;
 
     #[zbus(property)]
     fn playback_status(&self) -> Result<String>;
@@ -21,4 +23,10 @@ pub trait MprisPlayer {
     fn volume(&self) -> Result<f64>;
     #[zbus(property)]
     fn can_control(&self) -> Result<bool>;
+    #[zbus(property)]
+    fn can_seek(&self) -> Result<bool>;
+    /// The spec keeps `Position` out of `PropertiesChanged`, so it must be
+    /// read on demand rather than cached.
+    #[zbus(property(emits_changed_signal = "false"))]
+    fn position(&self) -> Result<i64>;
 }

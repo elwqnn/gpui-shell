@@ -11,9 +11,9 @@ use std::rc::Rc;
 
 use crate::theme::{ActiveTheme, Color, Spacing};
 use gpui::{
-    App, Bounds, BoxShadow, DragMoveEvent, ElementId, EntityId, IntoElement, MouseButton, Pixels,
-    Render, RenderOnce, SharedString, Styled, Window, canvas, div, point, prelude::*, px, relative,
-    size,
+    App, Bounds, BoxShadow, DragMoveEvent, ElementId, EntityId, Hsla, IntoElement, MouseButton,
+    Path, PathBuilder, Pixels, Render, RenderOnce, SharedString, Styled, Window, canvas, div,
+    point, prelude::*, px, relative, size,
 };
 
 use crate::components::label::{Label, LabelCommon};
@@ -21,6 +21,35 @@ use crate::components::stack::h_flex;
 use crate::theme::TextSize;
 use crate::traits::Disableable;
 use crate::traits::handlers::F32Handler;
+
+const WAVE_AMPLITUDE: Pixels = px(1.5);
+const WAVE_LENGTH: Pixels = px(22.0);
+const WAVE_THICKNESS: Pixels = px(3.0);
+
+/// Built through [`PathBuilder`]: a hand-built [`Path`] is filled as a
+/// triangle fan from its first vertex, which is only correct for convex
+/// shapes.
+fn wave_ribbon(track: Bounds<Pixels>, fraction: f32, phase: f32) -> Option<Path<Pixels>> {
+    let width = track.size.width * fraction.clamp(0.0, 1.0);
+    if width <= px(1.0) {
+        return None;
+    }
+
+    let middle = track.origin.y + track.size.height / 2.0;
+    let steps = ((width / px(2.0)) as usize).max(2);
+    let at = |step: usize| {
+        let x = track.origin.x + width * (step as f32 / steps as f32);
+        let angle = (x - track.origin.x) / WAVE_LENGTH * std::f32::consts::TAU + phase;
+        point(x, middle + WAVE_AMPLITUDE * angle.sin())
+    };
+
+    let mut builder = PathBuilder::stroke(WAVE_THICKNESS);
+    builder.move_to(at(0));
+    for step in 1..=steps {
+        builder.line_to(at(step));
+    }
+    builder.build().ok()
+}
 
 /// Drag payload identifying which slider is being dragged, so a drag started
 /// on one slider can't drive another one on the same screen.
@@ -46,6 +75,10 @@ pub struct Slider {
     disabled: bool,
     label: Option<SharedString>,
     show_value: bool,
+    track_color: Option<Hsla>,
+    fill_color: Option<Hsla>,
+    wavy: bool,
+    wave_phase: f32,
     on_change: Option<F32Handler>,
 }
 
@@ -60,6 +93,10 @@ impl Slider {
             disabled: false,
             label: None,
             show_value: false,
+            track_color: None,
+            fill_color: None,
+            wavy: false,
+            wave_phase: 0.0,
             on_change: None,
         }
     }
@@ -87,6 +124,32 @@ impl Slider {
     /// Show the current numeric value next to the slider.
     pub fn show_value(mut self, show: bool) -> Self {
         self.show_value = show;
+        self
+    }
+
+    /// Override the unfilled part of the track.
+    pub fn track_color(mut self, color: Hsla) -> Self {
+        self.track_color = Some(color);
+        self
+    }
+
+    /// Override the filled part of the track, and the thumb's ring with it.
+    pub fn fill_color(mut self, color: Hsla) -> Self {
+        self.fill_color = Some(color);
+        self
+    }
+
+    /// Draw the filled part as a wave rather than a bar, the way a media
+    /// player marks a track that is actually playing.
+    pub fn wavy(mut self, wavy: bool) -> Self {
+        self.wavy = wavy;
+        self
+    }
+
+    /// Where the wave is in its cycle, in radians. Feed it from an animation
+    /// to make the wave travel.
+    pub fn wave_phase(mut self, phase: f32) -> Self {
+        self.wave_phase = phase;
         self
     }
 
@@ -124,12 +187,12 @@ impl RenderOnce for Slider {
         let track_bg = if self.disabled {
             colors.element_disabled
         } else {
-            colors.element_background
+            self.track_color.unwrap_or(colors.element_background)
         };
         let fill_bg = if self.disabled {
             colors.text_disabled
         } else {
-            colors.accent
+            self.fill_color.unwrap_or(colors.accent)
         };
         let thumb_bg = if self.disabled {
             colors.text_disabled
@@ -139,7 +202,7 @@ impl RenderOnce for Slider {
         let thumb_border = if self.disabled {
             colors.border_variant
         } else {
-            colors.border_focused
+            self.fill_color.unwrap_or(colors.border_focused)
         };
         let label_color = if self.disabled {
             Color::Disabled
@@ -187,17 +250,36 @@ impl RenderOnce for Slider {
                         .absolute()
                         .size_full(),
                     )
-                    // Filled portion
-                    .child(
-                        div()
+                    // Filled portion: a wave while it is asked for, a plain
+                    // bar otherwise.
+                    .when(self.wavy, |this| {
+                        let phase = self.wave_phase;
+                        this.child(
+                            canvas(
+                                |_, _, _| {},
+                                move |bounds, _, window, _| {
+                                    if let Some(path) = wave_ribbon(bounds, fraction, phase) {
+                                        window.paint_path(path, fill_bg);
+                                    }
+                                },
+                            )
                             .absolute()
-                            .left_0()
-                            .top_0()
-                            .h_full()
-                            .w(relative(fraction))
-                            .rounded_full()
-                            .bg(fill_bg),
-                    )
+                            .inset_0()
+                            .size_full(),
+                        )
+                    })
+                    .when(!self.wavy, |this| {
+                        this.child(
+                            div()
+                                .absolute()
+                                .left_0()
+                                .top_0()
+                                .h_full()
+                                .w(relative(fraction))
+                                .rounded_full()
+                                .bg(fill_bg),
+                        )
+                    })
                     // Thumb - shadcn-style: small white circle with a ring
                     // halo on hover/active for affordance.
                     .child(
