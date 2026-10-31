@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use ui::Radius;
 
 use super::modules::{
-    ActiveWindowConfig, BatteryConfig, ClockConfig, KeyboardLayoutConfig, LauncherBtnConfig,
-    MprisConfig, SettingsConfig, SysInfoConfig, TrayConfig, WorkspacesConfig,
+    ActiveWindowConfig, BatteryConfig, ClockConfig, ControlCenterWidgetConfig,
+    KeyboardLayoutConfig, LauncherBtnConfig, MprisConfig, SysInfoConfig, TrayConfig,
+    WorkspacesConfig,
 };
 
 /// Bar screen position.
@@ -281,7 +282,7 @@ pub struct ModulesConfig {
     pub active_window: ActiveWindowConfig,
     pub keyboard_layout: KeyboardLayoutConfig,
     pub launcher_btn: LauncherBtnConfig,
-    pub settings: SettingsConfig,
+    pub control_center: ControlCenterWidgetConfig,
 }
 
 impl Default for BarConfig {
@@ -307,7 +308,7 @@ impl Default for BarConfig {
                 "Notifications".into(),
                 "Systray".into(),
                 "KeyboardLayout".into(),
-                "Settings".into(),
+                "ControlCenter".into(),
             ],
             modules: ModulesConfig::default(),
         }

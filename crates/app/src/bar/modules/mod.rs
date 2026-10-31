@@ -4,11 +4,11 @@
 mod active_window;
 mod battery;
 mod clock;
+pub mod control_center;
 pub(crate) mod ctx;
 mod keyboard_layout;
 mod launcher_btn;
 pub mod mpris;
-pub mod settings;
 pub(crate) mod style;
 pub mod sysinfo;
 mod tray;
@@ -18,11 +18,11 @@ mod workspaces;
 pub use active_window::ActiveWindowConfig;
 pub use battery::BatteryConfig;
 pub use clock::ClockConfig;
+pub use control_center::ControlCenterWidgetConfig;
 pub(crate) use ctx::BarCtx;
 pub use keyboard_layout::KeyboardLayoutConfig;
 pub use launcher_btn::LauncherBtnConfig;
 pub use mpris::MprisConfig;
-pub use settings::SettingsConfig;
 pub use sysinfo::SysInfoConfig;
 pub use tray::TrayConfig;
 pub(crate) use widget::{BarWidget, BarWidgetShell, boxed};
@@ -43,7 +43,7 @@ pub static REGISTRY: [BarWidgetDescriptor; 11] = [
     crate::notification::widget::descriptor(),
     tray::descriptor(),
     keyboard_layout::descriptor(),
-    settings::descriptor(),
+    control_center::descriptor(),
 ];
 
 /// The descriptor a config name refers to, aliases included.
@@ -83,8 +83,8 @@ mod tests {
             ("Media", "Mpris"),
             ("Player", "Mpris"),
             ("Notification", "Notifications"),
-            ("Info", "Settings"),
-            ("ControlCenter", "Settings"),
+            ("Settings", "ControlCenter"),
+            ("Info", "ControlCenter"),
         ] {
             assert_eq!(find(alias).map(|w| w.meta.name), Some(name), "{alias}");
         }

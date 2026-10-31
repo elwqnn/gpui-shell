@@ -18,7 +18,7 @@ size = 32.0
 position = "top"
 start = ["LauncherBtn", "Workspaces", "SysInfo"]
 center = ["ActiveWindow"]
-end = ["Clock", "Mpris", "Notifications", "Systray", "KeyboardLayout", "Settings"]
+end = ["Clock", "Mpris", "Notifications", "Systray", "KeyboardLayout", "ControlCenter"]
 
 [launcher]
 width = 600.0

@@ -1,8 +1,8 @@
-//! Settings module configuration.
+//! Control center widget configuration.
 
 use serde::{Deserialize, Serialize};
 
-/// Settings module configuration.
+/// Control center widget configuration.
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
-pub struct SettingsConfig {}
+pub struct ControlCenterWidgetConfig {}

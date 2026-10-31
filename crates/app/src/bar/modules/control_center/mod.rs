@@ -1,4 +1,4 @@
-//! Settings widget showing status icons that opens the control center panel.
+//! Control center widget showing status icons that opens the control center panel.
 //!
 //! This widget displays:
 //! - Privacy indicators (mic, webcam, screenshare) when active
@@ -18,7 +18,7 @@ use services::{
 use ui::{ButtonCommon, ButtonLike, ButtonStyle, Clickable, IconName};
 
 mod config;
-pub use config::SettingsConfig;
+pub use config::ControlCenterWidgetConfig;
 
 use super::{BarCtx, BarWidget, BarWidgetDescriptor, BarWidgetMeta, boxed, style};
 use crate::config::Config;
@@ -33,18 +33,18 @@ use crate::icons;
 pub const fn descriptor() -> BarWidgetDescriptor {
     BarWidgetDescriptor::new(
         BarWidgetMeta {
-            name: "Settings",
-            aliases: &["Info", "ControlCenter"],
-            label: "Settings",
+            name: "ControlCenter",
+            aliases: &["Settings", "Info"],
+            label: "Control Center",
             description: "Opens the control center.",
             icon: IconName::Settings,
         },
-        |cx| boxed(cx, Settings::new),
+        |cx| boxed(cx, ControlCenterWidget::new),
     )
 }
 
-/// Settings widget for the bar that shows system status icons.
-pub struct Settings {
+/// Control center widget for the bar that shows system status icons.
+pub struct ControlCenterWidget {
     audio: AudioData,
     bluetooth: BluetoothData,
     network: NetworkData,
@@ -52,8 +52,8 @@ pub struct Settings {
     upower: UPowerData,
 }
 
-impl Settings {
-    /// Create a new settings widget.
+impl ControlCenterWidget {
+    /// Create a new control center widget.
     pub fn new(cx: &mut Context<Self>) -> Self {
         let audio = AppState::audio(cx).get();
         let bluetooth = AppState::bluetooth(cx).get();
@@ -82,7 +82,7 @@ impl Settings {
             cx.notify();
         });
 
-        Settings {
+        ControlCenterWidget {
             audio,
             bluetooth,
             network,
@@ -207,7 +207,7 @@ impl Settings {
             ctx.metrics.icon_gap
         };
 
-        ButtonLike::new("settings-widget")
+        ButtonLike::new("control-center-widget")
             .style(ButtonStyle::Transparent)
             .on_click(cx.listener(|this, event: &gpui::ClickEvent, window, cx| {
                 this.toggle_panel(event.position(), window, cx);
@@ -237,7 +237,7 @@ impl Settings {
     }
 }
 
-impl BarWidget for Settings {
+impl BarWidget for ControlCenterWidget {
     fn is_interactive(&self) -> bool {
         true
     }

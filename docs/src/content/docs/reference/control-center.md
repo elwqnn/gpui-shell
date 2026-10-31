@@ -3,7 +3,7 @@ title: Control Center
 description: Control center configuration reference.
 ---
 
-The `[control_center]` section configures the control center panel.
+The `[control_center]` section configures the control center panel. The `ControlCenter` [bar widget](/gpui-shell/reference/bar/#widget-names) opens it.
 
 ## Power actions
 
